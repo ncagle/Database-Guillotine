@@ -595,3 +595,264 @@
 # arcpy.SetProgressor("step", "Processing polygons...", 0, count, 1)
 # bigi = 1
 # # Begin processing try: for row in scur: minx = miny = float("inf") maxx = maxy = float("-inf") totalarea = 0 feat = row.getValue(shapefield) totalarea = row.getValue(shapefield).area group = [] for field in groupfields: group.append(str(row.getValue(field))) partnum = 0 # Get the min and max X and Y for part in feat: for point in feat.getPart(partnum): if point: minx = point.X if point.X < minx else minx miny = point.Y if point.Y < miny else miny maxx = point.X if point.X > maxx else maxx maxy = point.Y if point.Y > maxy else maxy partnum += 1 # Process the polygon # Some variables conditionmet = False difference = 0 lastdifference = float("inf") differences = {} itys = {} i = 1 strike = 0 # The starting bisector (half the distance from min to max) if axis == "x": ity = (miny + maxy)/2.0 else: ity = (minx + maxx)/2.0 while not conditionmet: # Construct a line through the middle if axis == "x": line = MakeBisector(minx, maxx, ity, in_features, axis) else: line = MakeBisector(miny, maxy, ity, in_features, axis) # The FeatureToPolygon function does not except a geometry object, so make a temporary feature class templine = arcpy.management.CopyFeatures(line, "in_memory/templine") temppoly = arcpy.management.CopyFeatures(feat, "in_memory/temppoly") # Intersect then Feature To Polygon bisected = arcpy.management.FeatureToPolygon([temppoly, templine], "in_memory/bisected") clip = arcpy.analysis.Clip(bisected, in_features, "in_memory/clip") # Group bisected polygons according to above or below the bisector arcpy.management.AddField(clip, "FLAG", "SHORT") ucur = arcpy.UpdateCursor(clip, "", "") flag = 0 try: for urow in ucur: ufeat = urow.getValue(arcpy.Describe(clip).shapeFieldName) partnum = 0 for upart in ufeat: for upoint in ufeat.getPart(partnum): if upoint: if axis == "x": if round(upoint.Y, rounder) > round(ity, rounder): flag = 1 break elif round(upoint.Y, rounder) < round(ity, rounder): flag = -1 break else: if round(upoint.X, rounder) > round(ity, rounder): flag = 1 break elif round(upoint.X, rounder) < round(ity, rounder): flag = -1 break partnum += 1 urow.setValue("FLAG", flag) ucur.updateRow(urow) except: raise finally: if ucur: del ucur # Check if the areas are halved dissolve = arcpy.management.Dissolve(clip, "in_memory/dissolve", "FLAG") scur2 = arcpy.SearchCursor(dissolve) try: for row2 in scur2: firstarea = row2.getValue(arcpy.Describe(dissolve).shapeFieldName).area firstflag = row2.getValue("FLAG") break except: raise finally: if scur2: del scur2 difference = abs(firstarea - (totalarea/ith_part)) differences[i] = difference itys[i] = ity print round(100*(difference/(totalarea/ith_part)),5) #arcpy.AddWarning(round(100*(difference/(totalarea/ith_part)),5)) # Stop if tolerance is achieved if (difference/(totalarea/ith_part))*100 <= error: conditionmet = True break # Moving the line in the wrong direction? due to coordinate system origins or over-compensation if difference > lastdifference: firstflag = firstflag*-1.0 # If we're not improving if abs(difference) > min(differences.values()): strike+=1 # Or if the same values keep appearing if differences.values().count(difference) > 3 or strike >=3: arcpy.AddWarning("Tolerance could not be achieved. Output will be the closest possible.") # Reconstruct the best line if axis == "x": line = MakeBisector(minx, maxx, itys[min(differences,key = lambda a: differences.get(a))], in_features, axis) else: line = MakeBisector(miny, maxy, itys[min(differences,key = lambda a: differences.get(a))], in_features, axis) break # Otherwise move the bisector so that the areas will be more evenly split else: if firstflag == 1: if axis == "x": ity = ((ity-miny)/((totalarea/ith_part)/firstarea)) + miny else: ity = ((ity-minx)/((totalarea/ith_part)/firstarea)) + minx elif firstflag == -1: if axis == "x": ity = ((ity-miny)*math.sqrt((totalarea/ith_part)/firstarea)) + miny else: ity = ((ity-minx)*math.sqrt((totalarea/ith_part)/firstarea)) + minx lastdifference = difference i +=1 irow = icur.newRow() irow.setValue(arcpy.Describe(out_fc).shapeFieldName, line) irow.setValue("Group_", ", ".join(group)) icur.insertRow(irow) arcpy.SetProgressorPosition() arcpy.AddMessage("{0}/{1}".format(bigi, count)) bigi +=1 except: if arcpy.Exists(out_fc): arcpy.management.Delete(out_fc) raise finally: if scur: del scur if icur: del icur if irow: del irow for data in ["in_memory/grouped", temppoly, templine, clip, bisected, dissolve]: if data: try: arcpy.management.Delete(data) except: "" def MakeBisector(min,max,constant, templatefc, axis): if axis == "x": array = arcpy.Array() array.add(arcpy.Point(min, constant)) array.add(arcpy.Point(max, constant)) else: array = arcpy.Array() array.add(arcpy.Point(constant, min)) array.add(arcpy.Point(constant, max)) line = arcpy.Polyline(array, arcpy.Describe(templatefc).spatialReference) return line def GetRounder(in_features): try: unit = arcpy.Describe(in_features).spatialReference.linearUnitName.lower() except: unit = "dd" if unit.find("foot") > -1: rounder = 1 elif unit.find("kilo") > -1: rounder = 3 elif unit.find("meter") > -1: rounder = 1 elif unit.find("mile") > -1: rounder = 3 elif unit.find("dd") > -1: rounder = 5 else: rounder = 3 return rounder # Run the script if __name__ == '__main__': # Get Parameters in_features = str(outFeatureClass2) out_fc = percent_lines axis = arcpy.GetParameterAsText(2).lower() or "x" groupfields = arcpy.GetParameterAsText(3).split(";") if arcpy.GetParameterAsText(3) else [] error = float(arcpy.GetParameter(4)) if arcpy.GetParameter(4) else 0.001 out_data = line2 # Run the main script PolygonBisector(in_features, out_fc, axis, groupfields, error) arcpy.Copy_management(out_fc, out_data) # Use Append tool to move features into single dataset arcpy.Append_management(out_data, allLines, schemaType, fieldMappings, subtype) print "again generating a polyline to split same polygon" print "" else: print "Error" print "finished" print "" print "Splitting polygon using multiple lines generated for a percent area values provided by you..." def splitPolygonsWithLines(Poly, Lines, LinesQuery="", outPoly=""): inputPoly=Poly inputLines=Lines query=LinesQuery inputPolyName=os.path.basename(inputPoly) inputLinesName=os.path.basename(inputLines) parDir=os.path.abspath(inputPoly+"\..") if outPoly=="": outputPolyName=os.path.splitext(inputPolyName)[0]+u"_Split"+os.path.splitext(inputPolyName)[1] outputPoly=os.path.join(parDir,outputPolyName) else: outputPolyName=os.path.basename(outPoly) outputPoly=outPoly sr=arcpy.Describe(inputPoly).spatialReference fieldNameIgnore=["SHAPE_Area", "SHAPE_Length"] fieldTypeIgnore=["OID", "Geometry"] ############################################################################################################################# arcpy.CreateFeatureclass_management (parDir, outputPolyName, "POLYGON", "", "", "", sr) arcpy.AddField_management(outputPoly, "OLD_OID", "LONG") for field in arcpy.ListFields(inputPoly): if (field.type not in fieldTypeIgnore and field.name not in fieldNameIgnore): arcpy.AddField_management (outputPoly, field.name, field.type) arcpy.MakeFeatureLayer_management(inputLines,inputLinesName+"Layer",query) arcpy.MakeFeatureLayer_management(inputPoly,inputPolyName+"Layer") arcpy.SelectLayerByLocation_management(inputPolyName+"Layer","INTERSECT",inputLinesName+"Layer","","NEW_SELECTION") arcpy.SelectLayerByAttribute_management(inputPolyName+"Layer", "SWITCH_SELECTION") fieldmappings = arcpy.FieldMappings() for field in arcpy.ListFields(inputPoly): if (field.type not in fieldTypeIgnore and field.name not in fieldNameIgnore): fm=arcpy.FieldMap() fm.addInputField(outputPoly, field.name) fm.addInputField(inputPolyName+"Layer", field.name) fm_name = fm.outputField fm_name.name = field.name fm.outputField = fm_name fieldmappings.addFieldMap (fm) fm=arcpy.FieldMap() fm.addInputField(outputPoly, "OLD_OID") fm.addInputField(inputPolyName+"Layer", "OBJECTID") fm_name = fm.outputField fm_name.name = "OLD_OID" fm.outputField = fm_name fieldmappings.addFieldMap (fm) arcpy.Append_management(inputPolyName+"Layer", outputPoly, "NO_TEST", fieldmappings) polySelect=arcpy.SelectLayerByLocation_management(inputPolyName+"Layer","INTERSECT",inputLinesName+"Layer","","NEW_SELECTION") lineSelect=arcpy.SelectLayerByLocation_management(inputLinesName+"Layer","INTERSECT",inputPolyName+"Layer","","NEW_SELECTION") ############################################################################################################################# fields=[f.name for f in arcpy.ListFields(inputPoly) if (f.type not in fieldTypeIgnore and f.name not in fieldNameIgnore)] fields.append("SHAPE@") totalFeatures=int(arcpy.GetCount_management(polySelect).getOutput(0)) count=0 timePrev=time.time() with arcpy.da.SearchCursor(polySelect,["OID@"]+fields) as curInput: for rowInput in curInput: linesTemp=arcpy.SelectLayerByLocation_management(lineSelect,"INTERSECT",rowInput[-1],"","NEW_SELECTION") geometry=arcpy.CopyFeatures_management(linesTemp,arcpy.Geometry()) geometry.append(rowInput[-1].boundary()) arcpy.FeatureToPolygon_management (geometry, "in_memory\polygons_init") arcpy.Clip_analysis ("in_memory\polygons_init", rowInput[-1], "in_memory\polygons_clip") with arcpy.da.SearchCursor("in_memory\polygons_clip","SHAPE@") as curPoly: newGeom=[] for rowP in curPoly: if not rowP[0].disjoint(rowInput[-1]): newGeom.append(rowP[0]) arcpy.Delete_management("in_memory") with arcpy.da.InsertCursor(outputPoly, ["OLD_OID"]+fields) as insCur: for geom in newGeom: insertFeature=[r for r in rowInput[:-1]] insertFeature.append(geom) insCur.insertRow(insertFeature) count+=1 if int(time.time()-timePrev)%5==0 and int(time.time()-timePrev)>0: timePrev=time.time() arcpy.AddMessage("\r{0}% done, {1} features processed".format(int(count*100/totalFeatures),int(count))) def main(): arcpy.env.overwriteOutput = True arcpy.env.XYTolerance = "0.1 Meters" inputPoly = arcpy.GetParameterAsText(0) # required inputLines = arcpy.GetParameterAsText(1) # required linesQuery = arcpy.GetParameterAsText(2) # optional outPoly = arcpy.GetParameterAsText(3) # optional if inputPoly=="": inputPoly=outFeatureClass2 if arcpy.Exists(inputPoly): arcpy.AddMessage("Input polygons: "+inputPoly) else: arcpy.AddError("Input polygons layer %s is invalid" % (inputPoly)) if inputLines=="": inputLines=allLines if arcpy.Exists(inputLines): arcpy.AddMessage("Input lines: "+inputPoly) else: arcpy.AddError("Input lines layer %s is invalid" % (inputLines)) if linesQuery=="": arcpy.AddMessage("Performing without query") if outPoly == "": arcpy.AddMessage("Output will be created at the same location as input polygons layer is.") splitPolygonsWithLines(inputPoly, inputLines, linesQuery, outPoly) if __name__ == "__main__": main() print "" print "Done"
+
+
+
+
+
+# Sanitizing GDB name
+# # T:\GEOINT\FEATURE DATA\Hexagon 250-251\SDE_Connections\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS
+# tds_split = TDS.split("\\") # ['T:', 'GEOINT', 'FEATURE DATA', 'Hexagon 250-251', 'SDE_Connections', 'hexagon250_e04a_surge2.sde', 'hexagon250_e04a_surge2.sde.TDS']
+# tds_split.pop() # hexagon250_e04a_surge2.sde.TDS
+# gdb_file = tds_split.pop() # hexagon250_e04a_surge2.sde
+# name_list = gdb_file.split(".") # ['hexagon250_e04a_surge2', 'sde']
+# gdb_name_raw = name_list[0] # hexagon250_e04a_surge2
+# gdb_name = gdb_name_raw + "_" + timestamp # hexagon250_e04a_surge2_2022Mar28_1608
+# #gdb_ext = gdb_name + ".gdb" # hexagon250_e04a_surge2.gdb
+# #out_path = "{0}\\{1}.gdb".format(out_folder, gdb_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_2022Mar28_1608.gdb
+# out_path = os.path.join(out_folder, gdb_name + ".gdb")
+# #xml_out = "{0}\\{1}_schema.xml".format(out_folder, gdb_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_schema.xml
+# xml_out = os.path.join(out_folder, gdb_name + "_schema.xml")
+# #out_tds = "{0}\\TDS".format(out_path) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2.gdb\TDS
+# out_tds = os.path.join(out_path, "TDS")
+
+# fc_split = fc.split(".")
+# fc_strip = fc_split.pop() # AeronauticCrv
+# input_fc = os.path.join(TDS, fc) # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
+# local_fc = os.path.join(out_tds, fc_strip) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_timestamp.gdb\TDS\AeronauticCrv
+
+
+# fc name hexagon250_e04a_surge2.sde.AeronauticPnt
+# dsc.file
+# fc path T:\GEOINT\FEATURE DATA\Hexagon 250-251\SDE_Connections\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticPnt
+# dsc.catalogPath
+# dataset path containing fc T:\GEOINT\FEATURE DATA\Hexagon 250-251\SDE_Connections\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS
+# dsc.path
+
+
+gdb_name_raw = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0]
+gdb_name = gdb_name_raw + "_" + timestamp
+xml_out = os.path.join(out_folder, gdb_name_raw + "_schema.xml")
+out_path = os.path.join(out_folder, gdb_name + ".gdb")
+# SDE
+# TDS           = T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde\hexagon250_e04a_surge2.sde.TDS
+# path.split    = ('T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde', 'hexagon250_e04a_surge2.sde.TDS')
+# path.split[0] = T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde
+# path.basename = hexagon250_e04a_surge.sde
+# re.findall    = ['hexagon250_e04a_surge', 'sde']
+# re.findall[0] = hexagon250_e04a_surge
+# gdb_name      = hexagon250_e04a_surge_2022Mar29_1923
+# xml_out       = C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_schema.xml
+# out_path      = C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_2022Mar29_1923.gdb
+# Local
+# TDS           = C:\Projects\njcagle\R&D\__Thunderdome\S1_C09C_20210427.gdb\TDS
+# path.split    = ('C:\Projects\njcagle\R&D\__Thunderdome\S1_C09C_20210427.gdb', 'TDS')
+# path.split[0] = C:\Projects\njcagle\R&D\__Thunderdome\S1_C09C_20210427.gdb
+# path.basename = S1_C09C_20210427.gdb
+# re.findall    = ['S1_C09C_20210427', 'gdb']
+# re.findall[0] = S1_C09C_20210427
+# gdb_name      = S1_C09C_20210427_2022Mar29_1925
+# xml_out       = C:\Projects\njcagle\finishing\E04A\S1_C09C_20210427_schema.xml
+# out_path      = C:\Projects\njcagle\finishing\E04A\S1_C09C_20210427_2022Mar29_1925.gdb
+
+def get_local(out_path, dsc): # Gets the clean feature class name and its local path in the target GDB
+	#local_fc_path, clean_fc_name = get_local(output_path, describe_obj)
+	# dsc.file        = hexagon250_e04a_surge2.sde.AeronauticCrv
+	# split(".")     = [hexagon250_e04a_surge2, sde, AeronauticCrv]
+	# split(".")[-1] = AeronauticCrv
+	fc_name = dsc.file.split(".")[-1] # AeronauticCrv
+	local_fc = os.path.join(out_path, "TDS", fc_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_2022Mar28_1608.gdb\TDS\AeronauticCrv
+	return local_fc, fc_name
+
+dsc = arcpy.Describe(fc)
+fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
+input_fc = dsc.catalogPath # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
+local_fc, fc_name = get_local(out_path, dsc)
+
+
+
+
+
+# with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor:
+# 	if fc_type == 'Point':
+# 		for srow in input_scursor:
+# 			input_shp = srow[-1]
+# 			if input_shp is None:
+# 				write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
+# 				continue
+# 			elif input_shp.within(aoi_shp, "CLEMENTINI"):
+# 				local_icursor.insertRow(srow)
+# 				f_count += 1
+# 				continue
+# 		del local_icursor
+# 		finish_cursor_search = dt.now()
+# 		write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
+# 		write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
+# 		continue
+# 	if fc_type == 'Polyline':
+# 		for srow in input_scursor:
+# 			input_shp = srow[-1]
+# 			if input_shp is None:
+# 				write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
+# 				continue
+# 			elif input_shp.crosses(aoi_shp):
+# 				clip_shp = input_shp.clip(aoi_extent) # Current feature geometry object clipped by extent object of aoi geometry object
+# 				srow = update_row_tuple(srow, -1, clip_shp)
+# 				local_icursor.insertRow(srow)
+# 				f_count += 1
+# 				continue
+# 			elif input_shp.within(aoi_shp, "CLEMENTINI"):
+# 				local_icursor.insertRow(srow)
+# 				f_count += 1
+# 				continue
+# 		del local_icursor
+# 		finish_cursor_search = dt.now()
+# 		write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
+# 		write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
+# 		continue
+# 	if fc_type == 'Polygon':
+# 		for srow in input_scursor:
+# 			input_shp = srow[-1]
+# 			if input_shp is None:
+# 				write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
+# 				continue
+# 			if input_shp.crosses(aoi_line):
+# 				clip_shp = input_shp.clip(aoi_extent) # Current feature geometry object clipped by extent object of aoi geometry object
+# 				srow = update_row_tuple(srow, -1, clip_shp)
+# 				local_icursor.insertRow(srow)
+# 				f_count += 1
+# 				continue
+# 			in_shp_cent = srow[-1].trueCentroid
+# 			if in_shp_cent.within(aoi_shp, "CLEMENTINI"):
+# 				local_icursor.insertRow(srow)
+# 				f_count += 1
+# 				continue
+# 		del local_icursor
+# 		finish_cursor_search = dt.now()
+# 		write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
+# 		write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
+# 		continue
+
+
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Debug info for field_list:
+#    Variable Type: <type 'list'>
+#    Assigned Value: [u'f_code', u'fcsubtype', u'aoo', u'apt', u'apt2', u'apt3', u'ara', u'asy', u'axs', u'caa', u'ffn', u'ffn2', u'ffn3', u'fpt', u'gug', u'haf', u'hgt', u'htp', u'iko', u'lmc', u'lzn', u'mag', u'mcc', u'mcc2', u'mcc3', u'na8', u'oth', u'pcf', u'pec', u'pym', u'ssr', u'ssr2', u'ssr3', u'tos', u'trs', u'trs2', u'trs3', u'ufi', u'vcm', u'vcm2', u'vcm3', u'voi', u'wid', u'zi004_rcg', u'zi005_fna', u'zi005_nfn', u'zi006_mem', u'zi019_asp', u'zi019_asp2', u'zi019_asp3', u'zi019_asu', u'zi019_asu2', u'zi019_asu3', u'zi019_asx', u'zi019_sfs', u'zi020_ge4', u'zi026_ctuc', u'zi026_ctul', u'zi026_ctuu', u'zva', u'zvh', u'aha', u'zi001_srt', u'zi001_sdv', u'zi001_sdp', u'zi001_sps', u'zi001_vsc', u'zi001_vsd', u'zi001_vsn', u'ccn', u'cdr', u'zsax_rs0', u'zsax_rx0', u'zsax_rx3', u'zsax_rx4', u'globalid', u'version', u'created_user', u'created_date', u'last_edited_user', u'last_edited_date', 'OID@', 'SHAPE@']
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Debug info for input_scursor srow:
+#    Variable Type: <type 'tuple'>
+#    Assigned Value: (u'GB030', 100441, -999999.0, -999999, -999999, -999999, 106.0, -999999, 2, -999999, -999999, -999999, -999999, -999999, -999999, 11, -999999.0, -999999, u'noInformation', -999999, 13.0, -999999.0, -999999, -999999, -999999, u'noInformation', u'noInformation', 2, -999999, -999999, -999999, -999999, -999999, -999999, -999999, -999999, -999999, u'8A58E940-7F1C-4FF9-A4F4-98AB0D635A80', -999999, -999999, -999999, u'noInformation', 8.0, 19, u'noInformation', u'noInformation', u'noInformation', -999999, -999999, -999999, 5, -999999, -999999, 1, 3, u'ge:GENC:3:1-2:RUS', 5, 1, 250000, -999999.0, -999999.0, -999999.0, 30, u'2019-10-29', u'DigitalGlobe', 1001, -999999, u'noInformation', u'noInformation', u'Copyright 2021 by the National Geospatial-Intelligence Agency, U.S. Government. No domestic copyright claimed under Title 17 U.S.C. All rights reserved.', u'noInformation', u'U', u'noInformation', u'noInformation', u'USA', u'{711B7810-9A08-4B69-914A-712D8920F98E}', u'Prj8', None, None, None, None, None, None, None, <PointGeometry object at 0x156f9ab0[0x156f9540]>)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+
+
+def fractinull(shp, fc_name, oid):
+	# If geometry is NULL, output the feature class and OID and continue to next feature
+	if shp is None:
+		write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_name, oid))
+		continue
+
+def within_insert(shp, aoi, icursor, row):
+	global f_count
+	if shp.within(aoi, "CLEMENTINI"):
+		icursor.insertRow(row)
+		f_count += 1
+		continue
+
+def crosses_insert(shp, aoi, extent, icursor, row):
+	global f_count
+	if shp.crosses(aoi):
+		clip_shp = shp.clip(extent) # Current feature geometry object clipped by extent object of aoi geometry object
+		row = update_row_tuple(row, -1, clip_shp)
+		icursor.insertRow(row)
+		f_count += 1
+		continue
+
+def split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats):
+	del local_icursor
+	finish_cursor_search = dt.now()
+	write("Time elapsed to search {0}: {1}".format(fc_name, runtime(start_cursor_search,finish_cursor_search)))
+	write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_name))
+	continue
+
+
+
+def pbnj_bananasplit(AOI,
+):
+with arcpy.da.SearchCursor(AOI, ['SHAPE@']) as aoi_cur:
+	#aoi_next = aoi_cur.next()
+	#aoi_shp = aoi_next[0]
+	aoi_shp = aoi_cur.next()[0] # Go to next(first and should be only) AOI polygon row record and return its geometry object
+	if aoi_shp is None: # Must check for NULL geometry before using any geometry methods
+		write("NULL geometry found in input AOI. Please check the AOI polygon and try again.")
+		sys.exit(0) # If the AOI polygon has NULL geometry, exit the tool. The AOI needs to be checked by the user
+	if 'MetadataSrf' in fc or 'ResourceSrf' in fc: # Check for these first since they are a special case
+		query = '' # Metadata and Resource surfaces have different fields. Copy them regardless of query. Can be excluded in Advanced Options.
+		write("Found {0}. Ignoring ctuu query and copying all within provided AOI.".format(fc))
+		with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields
+			for irow in input_scursor: # Loop thru each Metadata or Resource surface in the input feature class
+				input_shp = irow[-1] # Geometry object of current feature
+				input_oid = irow[-2] # OID object of current row
+				fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+				# Metadata and Resource specific method
+				in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current feature
+				within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If feature's centroid is within the AOI, insert it into the new GDB
+		split_ends() # Close insert cursor, output runtime, output total features copied, and continue to next feature class
+	else: # Proceed assuming normal TDS feature classes
+		with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields and user defined query
+			if fc_type == 'Point': # Points are either within or without the AOI
+				for irow in input_scursor: # Loop thru each point in the input feature class
+					input_shp = irow[-1] # Geometry object of current point
+					input_oid = irow[-2] # OID object of current row
+					fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+					# Point specific method
+					in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current point
+					within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If point is within the AOI, insert it into the new GDB
+			if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
+				aoi_extent = aoi_shp.extent # AOI extent object is used to clip line geometries
+				for irow in input_scursor: # Loop thru each point in the input feature class
+					input_shp = irow[-1] # Geometry object of current line
+					input_oid = irow[-2] # OID object of current row
+					fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+					# Line specific method
+					crosses_insert(input_shp, aoi_shp, aoi_extent, local_icursor, irow) # Check if line crosses AOI before within then clip, insert, and continue
+					within_insert(input_shp, aoi_shp, local_icursor, irow) # If line doesn't cross AOI and is within(Clementini) then insert and continue
+			if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
+				aoi_extent = aoi_shp.extent # AOI extent object is used to clip polygon geometries
+				aoi_line = aoi_shp.boundary() # Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon cz of course polygons never cross...
+				for irow in input_scursor: # Loop thru each point in the input feature class
+					input_shp = irow[-1] # Geometry object of current polygon
+					input_oid = irow[-2] # OID object of current row
+					fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+					# Polygon specific method
+					in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current polygon
+					crosses_insert(input_shp, aoi_line, aoi_extent, local_icursor, irow) # Check if polygon crosses AOI before within then clip, insert, and continue
+					within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
+		split_ends() # Close insert cursor, output runtime, output total features copied, and continue to next feature class
+
+
+AOI, fc, input_fc, field_list, query, input_shp, fc_name, input_oid, in_shp_cent, aoi_shp, local_icursor, fc_type, aoi_extent, aoi_line
+
+
+
+
+
+def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path):
+	start_schema = dt.now()
+	write("Exporting XML workspace")
+	arcpy.ExportXMLWorkspaceDocument_management(TDS, xml_out, "SCHEMA_ONLY", "BINARY", "METADATA")
+	write("Creating File GDB")
+	arcpy.CreateFileGDB_management(out_folder, gdb_name, "CURRENT")
+	write("Importing XML workspace")
+	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
+	write("Local blank GDB with schema successfully created")
+	os.remove(xml_out)
+	finish_schema = dt.now()
+	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))

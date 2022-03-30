@@ -1,7 +1,7 @@
-# ============================= #
+# =================================== #
 # Database Guillotine - Scale and AOI #
-# Nat Cagle 2022-02-25          #
-# ============================= #
+# Nat Cagle 2022-03-29                #
+# =================================== #
 import arcpy
 from arcpy import AddMessage as write
 from datetime import datetime as dt
@@ -9,6 +9,7 @@ import os
 from collections import defaultdict
 import sys
 import time
+import re
 
 
 #            ________________________________
@@ -72,7 +73,8 @@ import time
 #     input_raster = parameters[1].valueAsText
 #     input_features = parameters[2].valueAsText
 
-# User parameters
+
+''''''''' Parameters '''''''''
 # Remind user to check their connection for the right location (jayhawk, kensington) and that they logged into the server
 # Ask user if this is an SDE connection
 # if so, enable parameter asking if they logged in and are in the right connection location
@@ -85,7 +87,7 @@ create_GDB = arcpy.GetParameter(2)
 out_folder = arcpy.GetParameterAsText(3) # Path to folder where the local GDB will be created
 ## [4] "Blank GDB with schema - Workspace"
 existing_GDB = arcpy.GetParameterAsText(4)
-# [5] "Use Full Extent (No AOI) - Boolean"
+## [5] "Use Full Extent (No AOI) - Boolean"
 no_AOI = arcpy.GetParameter(5)
 ## [6] "AOI (Merged into single feature) - Feature Class"
 AOI = arcpy.GetParameterAsText(6) # AOI used to split data
@@ -103,19 +105,19 @@ extract_fc = arcpy.GetParameterAsText(11)
 vogon = arcpy.GetParameter(12)
 ## [13] "Exclude: - Feature Class"
 vogon_fc = arcpy.GetParameterAsText(13)
-arcpy.env.workspace = TDS
-arcpy.env.overwriteOutput = True
 # Get current time for gdb timestamp
 timestamp = dt.now().strftime("%Y%b%d_%H%M")
+arcpy.env.workspace = TDS
+arcpy.env.overwriteOutput = True
 
 
-
-# Write information for given variable
-def write_info(name,var): # write_info('var_name',var)
+''''''''' General Functions '''''''''
+def write_info(name, var): # Write information for given variable
+	#write_info('var_name', var)
 	write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	write("Debug info for {0}:".format(name))
 	write("   Variable Type: {0}".format(type(var)))
-	if type(var) is str:
+	if type(var) is str or type(var) is unicode:
 		write("   Assigned Value: '{0}'".format(var))
 	else:
 		write("   Assigned Value: {0}".format(var))
@@ -148,7 +150,7 @@ def debug_view(**kwargs): # Input variable to view info in script output
 		else:
 			return
 
-def runtime(start,finish):
+def runtime(start,finish): # Time a process or code block
 	# Add a start and finish variable markers surrounding the code to be timed
 	#from datetime import datetime as dt
 	#start/finish = dt.now()
@@ -160,179 +162,208 @@ def runtime(start,finish):
 	time_elapsed = "{}:{:>02}:{:>05.4f}".format(h, m, s) # 00:00:00.0000
 	return time_elapsed
 
-def update_row_tuple(urow, index, val):
-	# For short tuples, slicing and concatenation is faster.
-	# But performance of long tuples is more consistently efficient with list conversion.
-	edit_row = list(urow)
+def get_count(fc_layer): # Returns feature count
+	results = int(arcpy.GetCount_management(fc_layer).getOutput(0))
+	return results
+
+
+''''''''' Task Functions '''''''''
+def update_row_tuple(irow, index, val): # Update a specific row field inside an insert cursor
+	# Usually used for updating geometry before copying the row
+	# For short tuples, slicing and concatenation is faster
+	# But performance of long tuples is more consistently efficient with list conversion
+	#geometry_obj = SHAPE@.method()
+	#irow = update_row_tuple(irow, -1, geometry_obj)
+	#icursor.insertRow(irow)
+	edit_row = list(irow)
 	edit_row[index] = val
 	return tuple(edit_row)
 
-def get_count(fc_layer):
-    results = int(arcpy.GetCount_management(fc_layer).getOutput(0))
-    return results
+def make_field_list(dsc): # Construct a list of proper feature class fields
+	# Sanitizes Geometry fields to work on File Geodatabases or SDE Connections
+	#field_list = make_field_list(describe_obj)
+	fields = dsc.fields # List of all fc fields
+	out_fields = [dsc.OIDFieldName, dsc.lengthFieldName, dsc.areaFieldName] # List Geometry and OID fields to be removed
+	# Construct sanitized list of field names
+	field_list = [field.name for field in fields if field.type not in ['Geometry'] and field.name not in out_fields]
+	# Further cleaning to account for other possible geometry standards including ST_Geometry
+	field_list[:] = [x for x in field_list if 'Shape' not in x and 'shape' not in x and 'Area' not in x and 'area' not in x and 'Length' not in x and 'length' not in x]
+	# Add OID@ token to index[-2] and Shape@ geometry token to index[-1]
+	field_list.append('OID@')
+	field_list.append('SHAPE@')
+	return field_list
+
+def get_local(out_path, dsc): # Gets the clean feature class name and its local path in the target GDB
+	#local_fc_path, clean_fc_name = get_local(output_path, describe_obj)
+	# dsc.file        = hexagon250_e04a_surge2.sde.AeronauticCrv
+	# split(".")     = [hexagon250_e04a_surge2, sde, AeronauticCrv]
+	# split(".")[-1] = AeronauticCrv
+	fc_name = dsc.file.split(".")[-1] # AeronauticCrv
+	local_fc = os.path.join(out_path, "TDS", fc_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_2022Mar28_1608.gdb\TDS\AeronauticCrv
+	return local_fc, fc_name
+
+def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path): # Creates a new file GDB with an empty schema identical to the source
+	# Works to replicate schema from SDE
+	# TDS - Path to source TDS with schema to replicate       # "T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde\hexagon250_e04a_surge2.sde.TDS"
+	# xml_out - Output path for schema xml file               # "C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_schema.xml"
+	# out_folder - Folder path where new GDB will be created  # "C:\Projects\njcagle\finishing\E04A"
+	# gdb_name - Name of GDB to be created                    # "hexagon250_e04a_surge_2022Mar29_1923"
+	# out_path - Path of newly created GDB                    # "C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_2022Mar29_1923.gdb"
+	start_schema = dt.now()
+	write("Exporting XML workspace")
+	arcpy.ExportXMLWorkspaceDocument_management(TDS, xml_out, "SCHEMA_ONLY", "BINARY", "METADATA")
+	write("Creating File GDB")
+	arcpy.CreateFileGDB_management(out_folder, gdb_name, "CURRENT")
+	write("Importing XML workspace")
+	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
+	write("Local blank GDB with schema successfully created")
+	os.remove(xml_out)
+	finish_schema = dt.now()
+	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
+
+def fractinull(shp, fc_name, oid): # Checks for NULL geometry
+	# If geometry is NULL, output the feature class and OID and continue to next feature
+	#fractinull(geometry_obj, fc_name, oid)
+	if shp is None:
+		write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_name, oid))
+		continue
+
+def within_insert(shp, aoi, icursor, row): # Inserts feature if the geometry is within the AOI
+	#within_insert(input_geom_obj, aoi_geom_obj, insert_cursor, insert_row)
+	global f_count # Pull in f_count as global to add to total
+	if shp.within(aoi, "CLEMENTINI"): # Geometry method checks if the feature geometry is within the AOI polygon
+		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
+		f_count += 1
+		continue
+
+def crosses_insert(shp, aoi, extent, icursor, row): # Inserts feature if the geometry crosses the AOI boundary after clipping it to be within
+	# Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
+	# So to check if a polygon crosses another polygon, one of them must be a polyline object made with the boundary() geometry method
+	#crosses_insert(input_geom_obj, aoi_geom_obj, extent_geom_obj, insert_cursor, insert_row)
+	global f_count # Pull in f_count as global to add to total
+	if shp.crosses(aoi): # Geometry method checks if the feature geometry crosses the AOI polygon boundary
+		clip_shp = shp.clip(extent) # Feature geometry is clipped by the extent of the AOI polygon to be within
+		row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
+		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
+		f_count += 1
+		continue
+
+def split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats): # Clean up, runtime, and feature count outputs
+	#split_ends()
+	del local_icursor # Close the insert cursor for the current feature class
+	finish_cursor_search = dt.now() # Stop runtime clock
+	write("Time elapsed to search {0}: {1}".format(fc_name, runtime(start_cursor_search,finish_cursor_search)))
+	write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_name))
+	continue
 
 
-# Sanitizing GDB name
-# "T:\GEOINT\FEATURE DATA\Hexagon 250-251\SDE_Connections\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS"
-tds_split = TDS.split("\\") # ['T:', 'GEOINT', 'FEATURE DATA', 'Hexagon 250-251', 'SDE_Connections', 'hexagon250_e04a_surge2.sde', 'hexagon250_e04a_surge2.sde.TDS']
-tds_split.pop() # hexagon250_e04a_surge2.sde.TDS
-gdb_file = tds_split.pop() # hexagon250_e04a_surge2.sde
-name_list = gdb_file.split(".") # ['hexagon250_e04a_surge2', 'sde']
-gdb_name_raw = name_list[0] # hexagon250_e04a_surge2
-gdb_name = gdb_name_raw + "_" + timestamp # hexagon250_e04a_surge2_2022Mar28_1608
-#gdb_ext = gdb_name + ".gdb" # hexagon250_e04a_surge2.gdb
-#out_path = "{0}\\{1}.gdb".format(out_folder, gdb_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2.gdb
+''''''''' Main '''''''''
+# Get name of input database for either SDE or file GDB to construct output variables
+gdb_name_raw = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
+gdb_name = gdb_name_raw + "_" + timestamp
+xml_out = os.path.join(out_folder, gdb_name_raw + "_schema.xml")
+#if create_GDB True
 out_path = os.path.join(out_folder, gdb_name + ".gdb")
-#xml_out = "{0}\\{1}_schema.xml".format(out_folder, gdb_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_schema.xml
-xml_out = os.path.join(out_folder, gdb_name + "_schema.xml")
-#out_tds = "{0}\\TDS".format(out_path) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2.gdb\TDS
-out_tds = os.path.join(out_path, "TDS")
+#else out_path = existing_GDB
 write("\nTDS input: {0}".format(TDS))
 write("\nSplit GDB output path: {0}\n".format(out_path))
 
 
-start_schema = dt.now()
-write("Exporting XML workspace")
-arcpy.ExportXMLWorkspaceDocument_management(TDS, xml_out, "SCHEMA_ONLY", "BINARY", "METADATA")
-write("Creating File GDB")
-arcpy.CreateFileGDB_management(out_folder, gdb_name, "CURRENT")
-write("Importing XML workspace")
-arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
-write("Local blank GDB with schema successfully created")
-os.remove(xml_out)
-finish_schema = dt.now()
-write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
+make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path)
 
 
-start_copy = dt.now()
+#start_copy = dt.now()
 fc_walk = arcpy.da.Walk(TDS, "FeatureClass")
-for dirpath, dirnames, filenames in fc_walk: # No dirnames present
+for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to navigate inconsistent SDEs. Also works on local.
 	filenames.sort()
-	if vogon:
-		filenames[:] = [x for x in filenames if 'StructurePnt' not in x and 'StructureSrf' not in x]
+	#def vogon_constructor_fleet(): # Said to hang in the air "the way that bricks don't"
+	#if vogon: ## [12] "Exclude Specific Feature Classes - Boolean"
+	#	filenames[:] = [x for x in filenames if 'StructurePnt' not in x and 'StructureSrf' not in x]
+
 	write("\nFCs loaded from input GDB: {0}".format(len(filenames)))
-	for fc in filenames: # hexagon250_e04a_surge2.sde.AeronauticCrv
-		if get_count(fc) == 0:
+	for fc in filenames:
+		total_feats = get_count(fc)
+		if total_feats == 0:
 			write("{0} is empty".format(fc))
 			continue
+
+		dsc = arcpy.Describe(fc)
+		fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
+		input_fc = dsc.catalogPath # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
+		local_fc, fc_name = get_local(out_path, dsc)
+
 		#allow for any field query to be made
 		#if query_manual not in listfields(fc):
 		#    continue
 		query = """{0} >= {1}""".format(arcpy.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
 		#write_info('query', query)
-		fc_split = fc.split(".")
-		fc_strip = fc_split.pop() # AeronauticCrv
-		input_fc = os.path.join(TDS, fc) # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
-		local_fc = os.path.join(out_tds, fc_strip) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_timestamp.gdb\TDS\AeronauticCrv
-		if arcpy.Exists(local_fc):
-			write("Checking {0} features".format(fc_strip))
-			# Collect all fields except the Geometry and OID fields
-			dsc = arcpy.Describe(fc)
-			fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
-			fields = dsc.fields
-			out_fields = [dsc.OIDFieldName, dsc.lengthFieldName, dsc.areaFieldName] # List of field names for OID, length, and area
-			# Create list of field names that aren't Geometry or in out_fields
-			field_list = [field.name for field in fields if field.type not in ['Geometry'] and field.name not in out_fields]
-			# Make sure to clean the list for all possible geometry standards including ST_Geometry
-			field_list[:] = [x for x in field_list if 'Shape' not in x and 'shape' not in x]
-			field_list[:] = [x for x in field_list if 'area' not in x and 'length' not in x]
-			field_list.append('OID@')
-			field_list.append('SHAPE@') # add the full Geometry object
-			write_info('field_list',field_list)
 
-			# Create Search and Insert Cursor
-			start_cursor_search = dt.now()
-			f_count = 0
-			local_icursor = arcpy.da.InsertCursor(local_fc, field_list)
-			with arcpy.da.SearchCursor(AOI, ['SHAPE@']) as aoi_cur:
-				aoi_next = aoi_cur.next()
-				aoi_shp = aoi_next[0]
-				aoi_extent = aoi_shp.extent
-				aoi_line = aoi_shp.boundary()
-				if 'MetadataSrf' in fc or 'ResourceSrf' in fc:
-					write("Found {0}. Ignoring ctuu query and copying all within provided AOI.".format(fc))
-					with arcpy.da.SearchCursor(input_fc, field_list) as input_scursor:
-						for srow in input_scursor:
-							input_shp = srow[-1]
-							if input_shp is None:
-								continue
-							in_shp_cent = srow[-1].trueCentroid
-							if in_shp_cent.within(aoi_shp, "CLEMENTINI"):
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-					del local_icursor
-					finish_cursor_search = dt.now()
-					write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
-					write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
-					continue
-				with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor:
-					if fc_type == 'Point':
-						#write("{0} is a {1} shapeType".format(fc_strip, fc_type))
-						for srow in input_scursor:
-							input_shp = srow[-1]
-							if input_shp is None:
-								write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
-								continue
-							elif input_shp.within(aoi_shp, "CLEMENTINI"):
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-						del local_icursor
-						finish_cursor_search = dt.now()
-						write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
-						write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
-						continue
-					if fc_type == 'Polyline':
-						#write("{0} is a {1} shapeType".format(fc_strip, fc_type))
-						for srow in input_scursor:
-							input_shp = srow[-1]
-							if input_shp is None:
-								write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
-								continue
-							elif input_shp.crosses(aoi_shp):
-								clip_shp = input_shp.clip(aoi_extent) # Current feature geometry object clipped by extent object of aoi geometry object
-								srow = update_row_tuple(srow, -1, clip_shp)
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-							elif input_shp.within(aoi_shp, "CLEMENTINI"):
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-						del local_icursor
-						finish_cursor_search = dt.now()
-						write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
-						write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
-						continue
-					if fc_type == 'Polygon':
-						#write("{0} is a {1} shapeType".format(fc_strip, fc_type))
-						for srow in input_scursor:
-							input_shp = srow[-1]
-							if input_shp is None:
-								write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_strip, srow[-2]))
-								continue
-							if input_shp.crosses(aoi_line):
-								clip_shp = input_shp.clip(aoi_extent) # Current feature geometry object clipped by extent object of aoi geometry object
-								srow = update_row_tuple(srow, -1, clip_shp)
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-							in_shp_cent = srow[-1].trueCentroid
-							if in_shp_cent.within(aoi_shp, "CLEMENTINI"):
-								local_icursor.insertRow(srow)
-								f_count += 1
-								continue
-						del local_icursor
-						finish_cursor_search = dt.now()
-						write("Time elapsed to search {0}: {1}".format(fc_strip, runtime(start_cursor_search,finish_cursor_search)))
-						write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_strip))
-						continue
-						# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-						# Debug info for input_scursor srow:
-						#    Variable Type: <type 'tuple'>
-						#    Assigned Value: (u'GB030', 100441, -999999.0, -999999, -999999, -999999, 106.0, -999999, 2, -999999, -999999, -999999, -999999, -999999, -999999, 11, -999999.0, -999999, u'noInformation', -999999, 13.0, -999999.0, -999999, -999999, -999999, u'noInformation', u'noInformation', 2, -999999, -999999, -999999, -999999, -999999, -999999, -999999, -999999, -999999, u'8A58E940-7F1C-4FF9-A4F4-98AB0D635A80', -999999, -999999, -999999, u'noInformation', 8.0, 19, u'noInformation', u'noInformation', u'noInformation', -999999, -999999, -999999, 5, -999999, -999999, 1, 3, u'ge:GENC:3:1-2:RUS', 5, 1, 250000, -999999.0, -999999.0, -999999.0, 30, u'2019-10-29', u'DigitalGlobe', 1001, -999999, u'noInformation', u'noInformation', u'Copyright 2021 by the National Geospatial-Intelligence Agency, U.S. Government. No domestic copyright claimed under Title 17 U.S.C. All rights reserved.', u'noInformation', u'U', u'noInformation', u'noInformation', u'USA', u'{711B7810-9A08-4B69-914A-712D8920F98E}', u'Prj8', None, None, None, None, None, None, None, <PointGeometry object at 0x156f9ab0[0x156f9540]>)
-						# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		write("Checking {0} features".format(fc_strip))
+		field_list = make_field_list(dsc)
 
-finish_copy = dt.now()
-write("\nTotal time to copy features: {0}\n".format(runtime(start_copy, finish_copy))
+		### re-add if arcpy.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
+
+		# Create Search and Insert Cursor
+		start_cursor_search = dt.now()
+		f_count = 0
+		local_icursor = arcpy.da.InsertCursor(local_fc, field_list)
+		# AOI, fc, input_fc, field_list, query, input_shp, fc_name, input_oid, in_shp_cent, aoi_shp, local_icursor, fc_type, aoi_extent, aoi_line
+		with arcpy.da.SearchCursor(AOI, ['SHAPE@']) as aoi_cur:
+			#aoi_next = aoi_cur.next()
+			#aoi_shp = aoi_next[0]
+			aoi_shp = aoi_cur.next()[0] # Go to next(first and should be only) AOI polygon row record and return its geometry object
+			if aoi_shp is None: # Must check for NULL geometry before using any geometry methods
+				write("NULL geometry found in input AOI. Please check the AOI polygon and try again.")
+				sys.exit(0) # If the AOI polygon has NULL geometry, exit the tool. The AOI needs to be checked by the user
+			if 'MetadataSrf' in fc or 'ResourceSrf' in fc: # Check for these first since they are a special case
+				query = '' # Metadata and Resource surfaces have different fields. Copy them regardless of query. Can be excluded in Advanced Options.
+				write("Found {0}. Ignoring ctuu query and copying all within provided AOI.".format(fc))
+				with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields
+					for irow in input_scursor: # Loop thru each Metadata or Resource surface in the input feature class
+						input_shp = irow[-1] # Geometry object of current feature
+						input_oid = irow[-2] # OID object of current row
+						fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+						# Metadata and Resource specific method
+						in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current feature
+						within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If feature's centroid is within the AOI, insert it into the new GDB
+				split_ends() # Close insert cursor, output runtime, output total features copied, and continue to next feature class
+			else: # Proceed assuming normal TDS feature classes
+				with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields and user defined query
+					if fc_type == 'Point': # Points are either within or without the AOI
+						for irow in input_scursor: # Loop thru each point in the input feature class
+							input_shp = irow[-1] # Geometry object of current point
+							input_oid = irow[-2] # OID object of current row
+							fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+							# Point specific method
+							in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current point
+							within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If point is within the AOI, insert it into the new GDB
+					if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
+						aoi_extent = aoi_shp.extent # AOI extent object is used to clip line geometries
+						for irow in input_scursor: # Loop thru each point in the input feature class
+							input_shp = irow[-1] # Geometry object of current line
+							input_oid = irow[-2] # OID object of current row
+							fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+							# Line specific method
+							crosses_insert(input_shp, aoi_shp, aoi_extent, local_icursor, irow) # Check if line crosses AOI before within then clip, insert, and continue
+							within_insert(input_shp, aoi_shp, local_icursor, irow) # If line doesn't cross AOI and is within(Clementini) then insert and continue
+					if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
+						aoi_extent = aoi_shp.extent # AOI extent object is used to clip polygon geometries
+						aoi_line = aoi_shp.boundary() # Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
+						for irow in input_scursor: # Loop thru each point in the input feature class
+							input_shp = irow[-1] # Geometry object of current polygon
+							input_oid = irow[-2] # OID object of current row
+							fractinull(input_shp, fc_name, input_oid) # Must check for NULL geometry before using any geometry methods
+							# Polygon specific method
+							in_shp_cent = irow[-1].trueCentroid # Gets the centroid of the current polygon
+							crosses_insert(input_shp, aoi_line, aoi_extent, local_icursor, irow) # Check if polygon crosses AOI before within then clip, insert, and continue
+							within_insert(in_shp_cent, aoi_shp, local_icursor, irow) # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
+				split_ends() # Close insert cursor, output runtime, output total features copied, and continue to next feature class
+
+
+#####################################################
+# Explode multiparts of new geometry split features #
+#####################################################
+
+
+#finish_copy = dt.now()
+write("\nTotal time to copy features: {0}\n".format(runtime(start_copy, finish_copy)))
