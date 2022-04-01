@@ -783,9 +783,8 @@ def split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats
 	continue
 
 
+# def pbnj_bananasplit(AOI, fc, input_fc, field_list, query, input_shp, fc_name, input_oid, in_shp_cent, aoi_shp, local_icursor, fc_type, aoi_extent, aoi_line):
 
-def pbnj_bananasplit(AOI,
-):
 with arcpy.da.SearchCursor(AOI, ['SHAPE@']) as aoi_cur:
 	#aoi_next = aoi_cur.next()
 	#aoi_shp = aoi_next[0]
@@ -838,21 +837,157 @@ with arcpy.da.SearchCursor(AOI, ['SHAPE@']) as aoi_cur:
 		split_ends() # Close insert cursor, output runtime, output total features copied, and continue to next feature class
 
 
-AOI, fc, input_fc, field_list, query, input_shp, fc_name, input_oid, in_shp_cent, aoi_shp, local_icursor, fc_type, aoi_extent, aoi_line
+
+
+
+# def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path):
+# 	start_schema = dt.now()
+# 	write("Exporting XML workspace")
+# 	arcpy.ExportXMLWorkspaceDocument_management(TDS, xml_out, "SCHEMA_ONLY", "BINARY", "METADATA")
+# 	write("Creating File GDB")
+# 	arcpy.CreateFileGDB_management(out_folder, gdb_name, "CURRENT")
+# 	write("Importing XML workspace")
+# 	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
+# 	write("Local blank GDB with schema successfully created")
+# 	os.remove(xml_out)
+# 	finish_schema = dt.now()
+# 	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
+
+
+
+# def within_check(shp, aoi):
+# 	inner_peace = False
+# 	if shp.within(aoi, "CLEMENTINI"):
+# 		inner_peace = True
+# 	return inner_peace
+#
+#
+# def within_insert(shp, aoi, icursor, row): # Inserts feature if the geometry is within the AOI
+# 	#within_insert(input_geom_obj, aoi_geom_obj, insert_cursor, insert_row)
+# 	if shp.within(aoi, "CLEMENTINI"): # Geometry method checks if the feature geometry is within the AOI polygon
+# 		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
+#
+# if within_check(input_shp, aoi_shp): # If line doesn't cross AOI and is within(Clementini) then insert and continue
+# 	local_icursor.insertRow(irow)
+# 	f_count +=1
 
 
 
 
 
-def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path):
-	start_schema = dt.now()
-	write("Exporting XML workspace")
-	arcpy.ExportXMLWorkspaceDocument_management(TDS, xml_out, "SCHEMA_ONLY", "BINARY", "METADATA")
-	write("Creating File GDB")
-	arcpy.CreateFileGDB_management(out_folder, gdb_name, "CURRENT")
-	write("Importing XML workspace")
-	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
-	write("Local blank GDB with schema successfully created")
-	os.remove(xml_out)
-	finish_schema = dt.now()
-	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
+for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to navigate inconsistent SDEs. Also works on local.
+	for fc in filenames:
+		# Create Search and Insert Cursor
+		local_icursor = arcpy.da.InsertCursor(local_fc, field_list)
+			with arcpy.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields and user defined query
+				if fc_type == 'Point': # Points are either within or without the AOI
+					for irow in input_scursor: # Loop thru each point in the input feature class
+						input_shp = irow[-1] # Geometry object of current point
+						input_oid = irow[-2] # OID object of current row
+						if fractinull(input_shp, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+							continue
+						# Point specific method
+						in_shp_cent = input_shp.trueCentroid # Gets the centroid of the current point
+						if within_insert(in_shp_cent, aoi_shp, local_icursor, irow): # If point is within the AOI, insert it into the new GDB
+							f_count +=1
+							continue
+				if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
+					#aoi_extent = aoi_shp.extent # AOI extent object is used to clip line geometries
+					aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
+					for irow in input_scursor: # Loop thru each point in the input feature class
+						input_shp = irow[-1] # Geometry object of current line
+						input_oid = irow[-2] # OID object of current row
+						if fractinull(input_shp, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+							continue
+						# Line specific method
+						if crosses_insert(input_shp, aoi_shp, aoi_line, 2, local_icursor, irow): # Check if line crosses AOI before within then clip, insert, and continue
+							f_count +=1
+							continue
+						if within_insert(input_shp, aoi_shp, local_icursor, irow): # If line doesn't cross AOI and is within(Clementini) then insert and continue
+							f_count +=1
+							continue
+				if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
+					#aoi_extent = aoi_shp.extent # AOI extent object is used to clip polygon geometries
+					aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
+					for irow in input_scursor: # Loop thru each point in the input feature class
+						input_shp = irow[-1] # Geometry object of current polygon
+						input_oid = irow[-2] # OID object of current row
+						if fractinull(input_shp, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+							continue
+						# Polygon specific method
+						in_shp_cent = input_shp.trueCentroid # Gets the centroid of the current polygon
+						if crosses_insert(input_shp, aoi_shp, aoi_line, 4, local_icursor, irow): # Check if polygon crosses AOI before within then clip, insert, and continue
+							f_count +=1
+							continue
+						if within_insert(in_shp_cent, aoi_shp, local_icursor, irow): # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
+							f_count +=1
+							continue
+			split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats) # Close insert cursor, output runtime, output total features copied, and continue to next feature class
+			try:
+				arcpy.Delete_management(str(arcpy.env.workspace) + str("\\" + str(in_class)))
+				arcpy.Delete_management(str(arcpy.env.workspace) + str("\\" + str(out_class)))
+				#arcpy.Delete_management("curr_fc")
+			except:
+				write("No in_class or out_class created. Or processing layers have already been cleaned up. Continuing...")
+				pass
+
+
+if multipart is False: # And if that multipart feature is the first in the fc
+	fc_multi[fc] = [row[0]] # Create a dictionary key of the feature class with a value of the first mutlipart oid in a list
+	multipart = True # Mark the current fc as having multipart features and that the initial feature dictionary has been created
+elif multipart is True: # If a multipart feature has already been found and the initial dictionary key is set up
+	fc_multi[fc].append(row[0])
+
+
+dsc = arcpy.Describe(fc)
+fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
+input_fc = dsc.catalogPath # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
+local_fc, fc_name = get_local(out_path, dsc)
+query = """{0} >= {1}""".format(arcpy.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
+field_list = make_field_list(dsc)
+
+# Explode multiparts created by clipping features that cross the AOI boundary
+fc_multi = { # Create empty dictionary to house lists of mulitpart features and their feature classes
+    'Aero'      : [1,2,3],
+    'Agro'      : [5,8,3],
+    'Trans'     : [2,9,8],
+    'Hydro'     : [4,5,2],
+    'Utilities' : [7,3,5]
+}
+fc_multi_list = fc_multi.keys() # Iterable list of feature classes that have multipart features
+write_info("fc_multi.keys()", fc_multi_list)
+in_class = "multi"
+out_class = "single"
+oid_field = dsc.OIDFieldName # Get the OID field name.
+
+# SHAPE@ = row[-1]
+# OID@   = row[-2]
+
+for fc in fc_multi.keys(): # Iterable list of feature classes that have multipart features
+		oid_list = str(tuple(fc_multi[fc]))
+		query = """{0} in {1}""".format(arcpy.AddFieldDelimiters(fc, oid_field), oid_list) # Formats the query from the above variables as: OBJECTID in (1, 2, 3)
+
+		# Create a new feature class to put the multipart features in to decrease processing time. fields based on original fc template
+		arcpy.CreateFeatureclass_management(out_tds, in_class, fc_type, local_fc, "", "", out_tds)
+
+		# Add multipart features to new feature class based on OID
+		with arcpy.da.SearchCursor(local_fc, field_list, query) as scursor: # Search current fc using for only OIDs that are in the multipart oid_list.
+			with arcpy.da.InsertCursor(in_class, field_list) as icursor: # Insert cursor for the newly created feature class with the same fields as scursor
+				for row in scursor:
+					icursor.insertRow(row) # Insert that feature row into the temp feature class, in_class "multi"
+
+		arcpy.MultipartToSinglepart_management(in_class, out_class) # New feature class output of just the converted single parts
+
+		with arcpy.da.UpdateCursor(out_class, 'ufi') as ucursor: # Populate the ufi for the newly created singlepart features
+			for row in ucursor:
+				row[0] = str(uuid.uuid4())
+				ucursor.updateRow(row)
+
+		with arcpy.da.UpdateCursor(local_fc, oid_field, query) as ucursor: # Deletes features in fc that have OIDs flagged as multiparts from the oid_list
+			for row in ucursor:
+				ucursor.deleteRow()
+
+		with arcpy.da.SearchCursor(out_class, field_list) as scursor: # Insert new rows in fc from MultipartToSinglepart output out_class
+			with arcpy.da.InsertCursor(local_fc, field_list) as icursor:
+				for row in scursor:
+					icursor.insertRow(row)

@@ -24,63 +24,8 @@ import re
 
 
 
-####### Database Guillotine - Scale and AOI #######
-
-### Example of getting parameters in .pyt python toolbox as opposed to arcpy.GetParameterAsText(0) in python script tools
-# def get_Parameter_Info(self):
-#     # Define parameter definitions
-#     param0 = arcpy._Parameter(
-#         displayName="Input workspace",
-#         name="workspace",
-#         datatype="DEWorkspace",
-#         parameterType="Required",
-#         direction="Input")
-#     param1 = arcpy._Parameter(
-#         displayName="Input classified raster",
-#         name="input_raster",
-#         datatype="GPRasterLayer",
-#         parameterType="Required",
-#         direction="Input")
-#     param2 = arcpy._Parameter(
-#         displayName="Input features",
-#         name="input_features",
-#         datatype="GPFeatureLayer",
-#         parameterType="Required",
-#         direction="Input")
-#
-#
-#     params = [param0, param1, param2]
-#
-#     return params
-#
-#
-# toggled inputs are set to optional but throw error if not filled in
-# if self.params[2].value == True:
-#     self.params[3].enabled = 1
-#     self.params[3].setIDMessage("ERROR", 735, self.params[3].displayName)
-#     self.params[4].enabled = 0
-#     self.params[4].clearMessage()
-# else:
-#     self.params[3].enabled = 0
-#     self.params[3].clearMessage()
-#     self.params[4].enabled = 1
-#     self.params[4].setIDMessage("ERROR", 735, self.params[4].displayName)
-#
-#
-# def _execute_(self, parameters, messages):
-#     # The source code of the tool.
-#     # Define some paths/variables
-#     outWorkspace = parameters[0].valueAsText
-#     arcpy.env.workspace = outWorkspace
-#     output_location = parameters[0].valueAsText
-#     input_raster = parameters[1].valueAsText
-#     input_features = parameters[2].valueAsText
-
 
 ''''''''' Parameters '''''''''
-# Remind user to check their connection for the right location (jayhawk, kensington) and that they logged into the server
-# Ask user if this is an SDE connection
-# if so, enable parameter asking if they logged in and are in the right connection location
 ## [0] "Did you log into the SDE? - Boolean"
 ## [1] "TDS - Workspace"
 TDS = arcpy.GetParameterAsText(1) # Path to TDS
@@ -205,7 +150,7 @@ def get_local(out_path, dsc): # Gets the clean feature class name and its local 
 	local_fc = os.path.join(out_path, "TDS", fc_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_2022Mar28_1608.gdb\TDS\AeronauticCrv
 	return local_fc, fc_name
 
-def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Creates a new file GDB with an empty schema identical to the source
+def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path): # Creates a new file GDB with an empty schema identical to the source
 	# Works to replicate schema from SDE
 	# TDS - Path to source TDS with schema to replicate       # "T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde\hexagon250_e04a_surge2.sde.TDS"
 	# xml_out - Output path for schema xml file               # "C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_schema.xml"
@@ -220,6 +165,7 @@ def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Cr
 	write("Importing XML workspace")
 	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
 	write("Local blank GDB with schema successfully created")
+	out_tds = os.path.join(out_path, "TDS")
 	arcpy.env.workspace = out_tds
 	featureclass = arcpy.ListFeatureClasses()
 	featureclass.sort()
@@ -234,7 +180,6 @@ def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Cr
 				pass
 	write("Editor Tracking has been disabled on local copy.")
 	os.remove(xml_out)
-	arcpy.RefreshCatalog(out_folder)
 	finish_schema = dt.now()
 	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
 
@@ -247,25 +192,29 @@ def fractinull(shp, fc_name, oid): # Checks for NULL geometry
 		write("{0} feature OID: {1} found with NULL geometry. Skipping transfer.".format(fc_name, oid))
 	return oh_dear_god
 
-def crosses_insert(shp, aoi, boundary, dimension, icursor, row): # Inserts feature if the geometry crosses the AOI boundary after clipping it to be within
-	# Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
-	# So to check if a polygon crosses another polygon, one of them must be a polyline object made with the boundary() geometry method
-	#crosses_insert(input_geom_obj, aoi_geom_obj, extent_geom_obj, insert_cursor, insert_row)
-	criss = False
-	if shp.crosses(boundary): # Geometry method checks if the feature geometry crosses the AOI polygon boundary
-		criss = True
-		clip_shp = shp.intersect(aoi, dimension) # Feature geometry is clipped the intersection overlap of the AOI polygon and the feature
-		row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
-		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
-	return criss
-
 def within_insert(shp, aoi, icursor, row): # Inserts feature if the geometry is within the AOI
 	#within_insert(input_geom_obj, aoi_geom_obj, insert_cursor, insert_row)
+	global f_count # Pull in f_count as global to add to total
 	inner_peace = False
 	if shp.within(aoi, "CLEMENTINI"): # Geometry method checks if the feature geometry is within the AOI polygon
 		inner_peace = True
 		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
+		f_count += 1
 	return inner_peace
+
+def crosses_insert(shp, aoi, extent, icursor, row): # Inserts feature if the geometry crosses the AOI boundary after clipping it to be within
+	# Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
+	# So to check if a polygon crosses another polygon, one of them must be a polyline object made with the boundary() geometry method
+	#crosses_insert(input_geom_obj, aoi_geom_obj, extent_geom_obj, insert_cursor, insert_row)
+	global f_count # Pull in f_count as global to add to total
+	criss = False
+	if shp.crosses(aoi): # Geometry method checks if the feature geometry crosses the AOI polygon boundary
+		criss = True
+		clip_shp = shp.clip(extent) # Feature geometry is clipped by the extent of the AOI polygon to be within
+		row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
+		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
+		f_count += 1
+	return criss
 
 def split_ends(icursor, fc_name, start_runtime, f_count, total): # Clean up, runtime, and feature count outputs
 	#split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats)
@@ -283,23 +232,17 @@ xml_out = os.path.join(out_folder, gdb_name_raw + "_schema.xml")
 #if create_GDB True
 out_path = os.path.join(out_folder, gdb_name + ".gdb")
 #else out_path = existing_GDB
-out_tds = os.path.join(out_path, "TDS")
 write("\nTDS input: {0}".format(TDS))
 write("\nSplit GDB output path: {0}\n".format(out_path))
 
 
-make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds)
+make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path)
 arcpy.env.workspace = TDS
 
 
-#start_copy = dt.now()
 fc_walk = arcpy.da.Walk(TDS, "FeatureClass")
 for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to navigate inconsistent SDEs. Also works on local.
 	filenames.sort()
-	#def vogon_constructor_fleet(): # Said to hang in the air "the way that bricks don't"
-	#if vogon: ## [12] "Exclude Specific Feature Classes - Boolean"
-	#	filenames[:] = [x for x in filenames if 'StructurePnt' not in x and 'StructureSrf' not in x]
-
 	write("\nFCs loaded from input GDB: {0}".format(len(filenames)))
 	for fc in filenames:
 		total_feats = get_count(fc)
@@ -311,19 +254,11 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 		fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
 		input_fc = dsc.catalogPath # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
 		local_fc, fc_name = get_local(out_path, dsc)
-
-		#allow for any field query to be made
-		#if query_manual not in listfields(fc):
-		#    continue
 		query = """{0} >= {1}""".format(arcpy.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
-		#write_info('query', query)
-
-		write("Checking {0} features".format(fc_name))
 		field_list = make_field_list(dsc)
 
-		### re-add if arcpy.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
-
 		# Create Search and Insert Cursor
+		write("Checking {0} features".format(fc_name))
 		start_cursor_search = dt.now()
 		f_count = 0
 		local_icursor = arcpy.da.InsertCursor(local_fc, field_list)
@@ -346,7 +281,6 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 						# Metadata and Resource specific method
 						in_shp_cent = input_shp.trueCentroid # Gets the centroid of the current feature
 						if within_insert(in_shp_cent, aoi_shp, local_icursor, irow): # If feature's centroid is within the AOI, insert it into the new GDB
-							f_count +=1
 							continue
 				split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats) # Close insert cursor, output runtime, output total features copied, and continue to next feature class
 			else: # Proceed assuming normal TDS feature classes
@@ -360,26 +294,22 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 							# Point specific method
 							in_shp_cent = input_shp.trueCentroid # Gets the centroid of the current point
 							if within_insert(in_shp_cent, aoi_shp, local_icursor, irow): # If point is within the AOI, insert it into the new GDB
-								f_count +=1
 								continue
 					if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
-						#aoi_extent = aoi_shp.extent # AOI extent object is used to clip line geometries
-						aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
+						aoi_extent = aoi_shp.extent # AOI extent object is used to clip line geometries
 						for irow in input_scursor: # Loop thru each point in the input feature class
 							input_shp = irow[-1] # Geometry object of current line
 							input_oid = irow[-2] # OID object of current row
 							if fractinull(input_shp, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
 								continue
 							# Line specific method
-							if crosses_insert(input_shp, aoi_shp, aoi_line, 2, local_icursor, irow): # Check if line crosses AOI before within then clip, insert, and continue
-								f_count +=1
+							if crosses_insert(input_shp, aoi_shp, aoi_extent, local_icursor, irow): # Check if line crosses AOI before within then clip, insert, and continue
 								continue
 							if within_insert(input_shp, aoi_shp, local_icursor, irow): # If line doesn't cross AOI and is within(Clementini) then insert and continue
-								f_count +=1
 								continue
 					if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
-						#aoi_extent = aoi_shp.extent # AOI extent object is used to clip polygon geometries
-						aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
+						aoi_extent = aoi_shp.extent # AOI extent object is used to clip polygon geometries
+						aoi_line = aoi_shp.boundary() # Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
 						for irow in input_scursor: # Loop thru each point in the input feature class
 							input_shp = irow[-1] # Geometry object of current polygon
 							input_oid = irow[-2] # OID object of current row
@@ -387,19 +317,11 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 								continue
 							# Polygon specific method
 							in_shp_cent = input_shp.trueCentroid # Gets the centroid of the current polygon
-							if crosses_insert(input_shp, aoi_shp, aoi_line, 4, local_icursor, irow): # Check if polygon crosses AOI before within then clip, insert, and continue
-								f_count +=1
+							if crosses_insert(input_shp, aoi_line, aoi_extent, local_icursor, irow): # Check if polygon crosses AOI before within then clip, insert, and continue
 								continue
 							if within_insert(in_shp_cent, aoi_shp, local_icursor, irow): # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
-								f_count +=1
 								continue
 				split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats) # Close insert cursor, output runtime, output total features copied, and continue to next feature class
 
+write("\n*** Please be sure to run the Hypernova Burst Multipart tool in the Finishing tool on this split copy. ***\n")
 
-#####################################################
-# Explode multiparts of new geometry split features #
-#####################################################
-
-
-#finish_copy = dt.now()
-#write("\nTotal time to copy features: {0}\n".format(runtime(start_copy, finish_copy)))

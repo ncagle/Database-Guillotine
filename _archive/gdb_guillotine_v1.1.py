@@ -24,63 +24,7 @@ import re
 
 
 
-####### Database Guillotine - Scale and AOI #######
-
-### Example of getting parameters in .pyt python toolbox as opposed to arcpy.GetParameterAsText(0) in python script tools
-# def get_Parameter_Info(self):
-#     # Define parameter definitions
-#     param0 = arcpy._Parameter(
-#         displayName="Input workspace",
-#         name="workspace",
-#         datatype="DEWorkspace",
-#         parameterType="Required",
-#         direction="Input")
-#     param1 = arcpy._Parameter(
-#         displayName="Input classified raster",
-#         name="input_raster",
-#         datatype="GPRasterLayer",
-#         parameterType="Required",
-#         direction="Input")
-#     param2 = arcpy._Parameter(
-#         displayName="Input features",
-#         name="input_features",
-#         datatype="GPFeatureLayer",
-#         parameterType="Required",
-#         direction="Input")
-#
-#
-#     params = [param0, param1, param2]
-#
-#     return params
-#
-#
-# toggled inputs are set to optional but throw error if not filled in
-# if self.params[2].value == True:
-#     self.params[3].enabled = 1
-#     self.params[3].setIDMessage("ERROR", 735, self.params[3].displayName)
-#     self.params[4].enabled = 0
-#     self.params[4].clearMessage()
-# else:
-#     self.params[3].enabled = 0
-#     self.params[3].clearMessage()
-#     self.params[4].enabled = 1
-#     self.params[4].setIDMessage("ERROR", 735, self.params[4].displayName)
-#
-#
-# def _execute_(self, parameters, messages):
-#     # The source code of the tool.
-#     # Define some paths/variables
-#     outWorkspace = parameters[0].valueAsText
-#     arcpy.env.workspace = outWorkspace
-#     output_location = parameters[0].valueAsText
-#     input_raster = parameters[1].valueAsText
-#     input_features = parameters[2].valueAsText
-
-
 ''''''''' Parameters '''''''''
-# Remind user to check their connection for the right location (jayhawk, kensington) and that they logged into the server
-# Ask user if this is an SDE connection
-# if so, enable parameter asking if they logged in and are in the right connection location
 ## [0] "Did you log into the SDE? - Boolean"
 ## [1] "TDS - Workspace"
 TDS = arcpy.GetParameterAsText(1) # Path to TDS
@@ -205,7 +149,7 @@ def get_local(out_path, dsc): # Gets the clean feature class name and its local 
 	local_fc = os.path.join(out_path, "TDS", fc_name) # C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge2_2022Mar28_1608.gdb\TDS\AeronauticCrv
 	return local_fc, fc_name
 
-def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Creates a new file GDB with an empty schema identical to the source
+def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path): # Creates a new file GDB with an empty schema identical to the source
 	# Works to replicate schema from SDE
 	# TDS - Path to source TDS with schema to replicate       # "T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge.sde\hexagon250_e04a_surge2.sde.TDS"
 	# xml_out - Output path for schema xml file               # "C:\Projects\njcagle\finishing\E04A\hexagon250_e04a_surge_schema.xml"
@@ -220,6 +164,7 @@ def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Cr
 	write("Importing XML workspace")
 	arcpy.ImportXMLWorkspaceDocument_management(out_path, xml_out, "SCHEMA_ONLY")
 	write("Local blank GDB with schema successfully created")
+	out_tds = os.path.join(out_path, "TDS")
 	arcpy.env.workspace = out_tds
 	featureclass = arcpy.ListFeatureClasses()
 	featureclass.sort()
@@ -280,15 +225,12 @@ def split_ends(icursor, fc_name, start_runtime, f_count, total): # Clean up, run
 gdb_name_raw = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
 gdb_name = gdb_name_raw + "_" + timestamp
 xml_out = os.path.join(out_folder, gdb_name_raw + "_schema.xml")
-#if create_GDB True
 out_path = os.path.join(out_folder, gdb_name + ".gdb")
-#else out_path = existing_GDB
-out_tds = os.path.join(out_path, "TDS")
 write("\nTDS input: {0}".format(TDS))
 write("\nSplit GDB output path: {0}\n".format(out_path))
 
 
-make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds)
+make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path)
 arcpy.env.workspace = TDS
 
 
@@ -296,10 +238,6 @@ arcpy.env.workspace = TDS
 fc_walk = arcpy.da.Walk(TDS, "FeatureClass")
 for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to navigate inconsistent SDEs. Also works on local.
 	filenames.sort()
-	#def vogon_constructor_fleet(): # Said to hang in the air "the way that bricks don't"
-	#if vogon: ## [12] "Exclude Specific Feature Classes - Boolean"
-	#	filenames[:] = [x for x in filenames if 'StructurePnt' not in x and 'StructureSrf' not in x]
-
 	write("\nFCs loaded from input GDB: {0}".format(len(filenames)))
 	for fc in filenames:
 		total_feats = get_count(fc)
@@ -311,19 +249,11 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 		fc_type = dsc.shapeType # Polygon, Polyline, Point, Multipoint, MultiPatch
 		input_fc = dsc.catalogPath # T:\GEOINT\FEATURE DATA\hexagon250_e04a_surge2.sde\hexagon250_e04a_surge2.sde.TDS\hexagon250_e04a_surge2.sde.AeronauticCrv
 		local_fc, fc_name = get_local(out_path, dsc)
-
-		#allow for any field query to be made
-		#if query_manual not in listfields(fc):
-		#    continue
 		query = """{0} >= {1}""".format(arcpy.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
-		#write_info('query', query)
-
-		write("Checking {0} features".format(fc_name))
 		field_list = make_field_list(dsc)
 
-		### re-add if arcpy.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
-
 		# Create Search and Insert Cursor
+		write("Checking {0} features".format(fc_name))
 		start_cursor_search = dt.now()
 		f_count = 0
 		local_icursor = arcpy.da.InsertCursor(local_fc, field_list)
@@ -395,11 +325,4 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 								continue
 				split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats) # Close insert cursor, output runtime, output total features copied, and continue to next feature class
 
-
-#####################################################
-# Explode multiparts of new geometry split features #
-#####################################################
-
-
-#finish_copy = dt.now()
-#write("\nTotal time to copy features: {0}\n".format(runtime(start_copy, finish_copy)))
+write("\n*** Please run the Hypernova Burst Multipart tool in the Finishing Tool Suite after splitting. ***\n")
