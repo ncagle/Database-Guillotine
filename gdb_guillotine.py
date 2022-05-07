@@ -1,6 +1,6 @@
 # =================================== #
 # Database Guillotine - Scale and AOI #
-# Nat Cagle 2022-03-31                #
+# Nat Cagle 2022-05-02                #
 # =================================== #
 import arcpy
 from arcpy import AddMessage as write
@@ -156,27 +156,13 @@ def make_field_list(dsc): # Construct a list of proper feature class fields
 	# Sanitizes Geometry fields to work on File Geodatabases or SDE Connections
 	#field_list = make_field_list(describe_obj)
 	fields = dsc.fields # List of all fc fields
-	out_fields = [dsc.OIDFieldName, dsc.lengthFieldName, dsc.areaFieldName, 'Shape', 'shape', 'Area', 'area', 'Length', 'length'] # List Geometry and OID fields to be removed
+	out_fields = [dsc.OIDFieldName, dsc.lengthFieldName, dsc.areaFieldName, 'shape', 'area', 'length', 'global'] # List Geometry and OID fields to be removed
 	# Construct sanitized list of field names
-	field_list = [field.name for field in fields if field.type not in ['Geometry'] and field.name not in out_fields]
+	field_list = [field.name for field in fields if field.type not in ['Geometry'] and not any(substring in field.name.lower() for substring in out_fields if substring)]
 	# Add ufi field to index[-3], OID@ token to index[-2], and Shape@ geometry token to index[-1]
 	field_list.append('OID@')
 	field_list.append('SHAPE@')
 	return field_list
-# before changing out_fields to include 'Shape', 'Area', 'Length', and 'ufi'
-# def make_field_list(dsc): # Construct a list of proper feature class fields
-# 	# Sanitizes Geometry fields to work on File Geodatabases or SDE Connections
-# 	#field_list = make_field_list(describe_obj)
-# 	fields = dsc.fields # List of all fc fields
-# 	out_fields = [dsc.OIDFieldName, dsc.lengthFieldName, dsc.areaFieldName] # List Geometry and OID fields to be removed
-# 	# Construct sanitized list of field names
-# 	field_list = [field.name for field in fields if field.type not in ['Geometry'] and field.name not in out_fields]
-# 	# Further cleaning to account for other possible geometry standards including ST_Geometry
-# 	field_list[:] = [x for x in field_list if 'Shape' not in x and 'shape' not in x and 'Area' not in x and 'area' not in x and 'Length' not in x and 'length' not in x]
-# 	# Add OID@ token to index[-2] and Shape@ geometry token to index[-1]
-# 	field_list.append('OID@')
-# 	field_list.append('SHAPE@')
-# 	return field_list
 
 def get_local(out_path, dsc): # Gets the clean feature class name and its local path in the target GDB
 	#local_fc_path, clean_fc_name = get_local(output_path, describe_obj)
@@ -242,33 +228,12 @@ def crosses_insert(aoi, icursor, row): # Inserts feature if the geometry crosses
 		dim = 4
 	if shp.crosses(boundary): # Geometry method checks if the feature geometry crosses the AOI polygon boundary
 		criss = True
-		#write_info("irow before (crosses)", row)
 		oid = row[-2]
 		row = add_row_tuple(row, -3, oid)
-		#row = update_row_tuple(row, -3, oid)
 		clip_shp = shp.intersect(aoi, dim) # Feature geometry is clipped the intersection overlap of the AOI polygon and the feature
 		row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
-		#write_info("irow after (crosses)", row)
 		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
 	return criss
-# def crosses_insert(shp, aoi, boundary, dimension, icursor, row): # Inserts feature if the geometry crosses the AOI boundary after clipping it to be within
-# 	# Crosses() geometry method can only compare line-line or polygon-line, NOT polygon-polygon
-# 	# So to check if a polygon crosses another polygon, one of them must be a polyline object made with the boundary() geometry method
-# 	#crosses_insert(input_geom_obj, aoi_geom_obj, extent_geom_obj, insert_cursor, insert_row)
-# 	criss = False
-# 	if shp.crosses(boundary): # Geometry method checks if the feature geometry crosses the AOI polygon boundary
-# 		criss = True
-# 		clip_shp = shp.intersect(aoi, dimension) # Feature geometry is clipped the intersection overlap of the AOI polygon and the feature
-# 		write_info("irow before", row)
-# 		row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
-# 		row = update_row_tuple(row, -3, row[-2])
-# 		write_info("irow after", row)
-# 		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
-# 	return criss
-# def crosses_insert(shp, aoi, dimension, icursor, row): # Inserts feature if the geometry crosses the AOI boundary after clipping it to be within
-# 	clip_shp = shp.intersect(aoi, dimension) # Feature geometry is clipped the intersection overlap of the AOI polygon and the feature
-# 	row = update_row_tuple(row, -1, clip_shp) # Updates the SHAPE@ token with the newly clipped geometry object
-# 	icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB after geometry clip and replace
 
 def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geometry is within the AOI
 	#within_insert(input_geom_obj, aoi_geom_obj, insert_cursor, insert_row)
@@ -287,32 +252,7 @@ def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geome
 			icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
 		else:
 			icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
-		# if og_oid_row:
-		# 	row = update_row_tuple(row, -3, oid)
-		# 	icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
-		# else:
-		# 	icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
-		#
-		# field_list = [field.name for field in arcpy.ListFields(path)]
-		# if fc_type == 'point' or row[1] == 'ZI039' or row[1] == 'ZI031':
-		# 	icursor.insertRow(row)
-		# if row[1] == 'ZI039' or row[1] == 'ZI031':
-		# 	remove_row_tuple(row, -1)
-			# oid = None
-			# row = update_row_tuple(row, -1, oid)
-		# else:
-		# 	remove_row_tuple(row, -1)
-		#icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
 	return inner_peace
-# def within_insert(shp, oid, aoi, icursor, row): # Inserts feature if the geometry is within the AOI
-# 	#within_insert(input_geom_obj, aoi_geom_obj, insert_cursor, insert_row)
-# 	inner_peace = False
-# 	if shp.within(aoi, "CLEMENTINI"): # Geometry method checks if the feature geometry is within the AOI polygon
-# 		inner_peace = True
-# 		if row[-3] == 'og_oid':
-# 			row = update_row_tuple(row, -3, oid)
-# 		icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
-# 	return inner_peace
 
 
 ''''''''' Main '''''''''
@@ -358,10 +298,7 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 		og_oid = 'og_oid'
 		f_count = 0
 		criss = False
-		#og_oid_row = False
 		start_cursor_search = dt.now()
-
-		#oid_list = []
 
 		#allow for any field query to be made
 		#if query_manual not in listfields(fc):
@@ -477,9 +414,7 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 		# Explode multipart features that crossed the boundary
 		if criss:
 			write("\nSplit features at AOI boundary. Exploding the resultant geometries...")
-			#oid_query = str(tuple(oid_list))
 			oid_query = """{0} IS NOT NULL""".format(arcpy.AddFieldDelimiters(local_fc, og_oid))
-			#ex_query = """{0} in {1}""".format(arcpy.AddFieldDelimiters(fc, og_oid), oid_query) # Formats the query from the above variables as: OBJECTID in (1, 2, 3)
 			# Create a new feature class to put the multipart features in to decrease processing time. fields based on original fc template
 			arcpy.CreateFeatureclass_management(out_tds, "multi", fc_type, local_fc, "", "", out_tds)
 			# Add multipart features to new feature class based on OID
@@ -491,9 +426,6 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 						icursor.insertRow(srow) # Insert that feature row into the temp feature class, in_class "multi"
 			write("Added {0} features to in_class, running multipart to singlepart".format(incount))
 			arcpy.MultipartToSinglepart_management(in_class, out_class) # New feature class output of just the converted single parts
-			#write_info("local_fc fields", [field.name for field in arcpy.ListFields(local_fc)])
-			#write_info("in_class fields", [field.name for field in arcpy.ListFields(in_class)])
-			#write_info("out_class fields", [field.name for field in arcpy.ListFields(out_class)])
 			with arcpy.da.UpdateCursor(local_fc, og_oid, oid_query) as ucursor: # Deletes features in fc that have OIDs flagged as multiparts from the oid_list
 				for urow in ucursor:
 					write("Deleting feature OID {0} in local_fc".format(urow[0]))
