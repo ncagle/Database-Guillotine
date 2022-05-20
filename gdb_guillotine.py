@@ -25,8 +25,25 @@ import uuid
 
 
 
+'''
+╔═════════════════╗
+║ Notes and To-Do ║
+╚═════════════════╝
 
-#### Add note to user that this only works on databases using the CTUU format. Does not work on CACI GDBs in the Scale format
+#### 4 hashtags in the code means things to be updated
+## 2 hashtags in the code means recent changes/updates
+
+#### Update Plans
+  - Add note to user that this only works on databases using the CTUU format. Does not work on CACI GDBs in the Scale format
+  - Use validation logic from AO tool to add .gdb to the name that the user provides for the extracted copy
+
+## Recent Changes
+  -
+
+
+'''
+
+
 
 ''''''''' Parameters '''''''''
 # Remind user to check their connection for the right location (jayhawk, kensington) and that they logged into the server
