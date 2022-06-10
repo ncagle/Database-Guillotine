@@ -36,10 +36,64 @@ import uuid
 #### Update Plans
   - Add note to user that this only works on databases using the CTUU format. Does not work on CACI GDBs in the Scale format
   - Use validation logic from AO tool to add .gdb to the name that the user provides for the extracted copy
+    if self.params[5].value is not None:
+        if self.params[5].value.endswith(".gdb") == False and self.params[5].value != "":
+            self.params[5].value = self.params[5].value + ".gdb"
+  - option to use existing blank GDB
+  - option to use full extent of data instead of AOI
+  - option to use custom query to extract data
+  - checkbox list to choose specific feature classes to extract or not
+
+    if self.params[0].value == 'Energy Sector Model':
+        if not self.params[6].value:
+            self.params[6].setErrorMessage('Value is required')
+        else:
+            self.params[6].clearMessage()
+
+
+    if self.params[1].hasBeenValidated == False:
+	    if self.params[1].valueAsText is not None:
+	        if arcpy.Exists(self.params[1].valueAsText):
+	                arcpy.env.workspace = self.params[1].valueAsText
+	                fc_list = arcpy.ListFeatureClasses()
+	                self.params[15].filter.list = fc_list
+	                self.params[15].value = fc_list
+	        else:
+	                arcpy.env.workspace = self.params[1].valueAsText
+	                fc_list = arcpy.ListFeatureClasses()
+	                self.params[15].filter.list = fc_list
+	                self.params[15].value = fc_list
+
+    if self.params[3].enabled == 1:
+        if self.params[3].value == 'C:\Projects':
+            self.params[3].setErrorMessage('Value is required')
+    else:
+        self.params[3].clearMessage()
+
+    if self.params[4].enabled == 1:
+        if self.params[4].value == 'C:\Projects':
+            self.params[4].setErrorMessage('Value is required')
+    else:
+        self.params[4].clearMessage()
+
+    if self.params[6].enabled == 1:
+        if self.params[6].value == 'C:\Projects':
+            self.params[6].setErrorMessage('Value is required')
+    else:
+        self.params[6].clearMessage()
+
+    if self.params[9].enabled == 1:
+        if self.params[9].value == "Ex: 'HGT' >= 46":
+            self.params[9].setErrorMessage('Value is required')
+    else:
+        self.params[9].clearMessage()
 
 ## Recent Changes
   -
 
+[u'AeronauticCrv', u'AeronauticPnt', u'AeronauticSrf', u'AgriculturePnt', u'AgricultureSrf', u'BoundaryPnt', u'CultureCrv', u'CulturePnt', u'CultureSrf', u'FacilityPnt', u'FacilitySrf', u'HydroAidNavigationPnt', u'HydroAidNavigationSrf', u'HydrographyCrv', u'HydrographyPnt', u'HydrographySrf', u'IndustryCrv', u'IndustryPnt', u'IndustrySrf', u'InformationCrv', u'InformationPnt', u'InformationSrf', u'MilitaryCrv', u'MilitaryPnt', u'MilitarySrf', u'PhysiographyCrv', u'PhysiographyPnt', u'PhysiographySrf', u'PortHarbourCrv', u'PortHarbourPnt', u'PortHarbourSrf', u'RecreationCrv', u'RecreationPnt', u'RecreationSrf', u'SettlementPnt', u'SettlementSrf', u'StoragePnt', u'StorageSrf', u'StructureCrv', u'StructurePnt', u'StructureSrf', u'TransportationGroundCrv', u'TransportationGroundPnt', u'TransportationGroundSrf', u'TransportationWaterCrv', u'TransportationWaterPnt', u'TransportationWaterSrf', u'UtilityInfrastructureCrv', u'UtilityInfrastructurePnt', u'UtilityInfrastructureSrf', u'VegetationCrv', u'VegetationPnt', u'VegetationSrf', u'MetadataSrf', u'ResourceSrf']
+
+[u'AeronauticCrv', u'AeronauticPnt', u'AeronauticSrf', u'AgriculturePnt', u'AgricultureSrf', u'BoundaryPnt', u'CultureCrv', u'CulturePnt', u'CultureSrf', u'FacilityPnt', u'FacilitySrf', u'HydroAidNavigationPnt', u'HydroAidNavigationSrf', u'HydrographyCrv', u'HydrographyPnt', u'HydrographySrf', u'IndustryCrv', u'IndustryPnt', u'IndustrySrf', u'InformationCrv', u'InformationPnt', u'InformationSrf', u'MilitaryCrv', u'MilitaryPnt', u'MilitarySrf', u'PhysiographyCrv', u'PhysiographyPnt', u'PhysiographySrf', u'PortHarbourCrv', u'PortHarbourPnt', u'PortHarbourSrf', u'RecreationCrv', u'RecreationPnt', u'RecreationSrf', u'SettlementPnt', u'SettlementSrf', u'StoragePnt', u'StorageSrf', u'StructureCrv', u'StructurePnt', u'StructureSrf', u'TransportationGroundCrv', u'TransportationGroundPnt', u'TransportationGroundSrf', u'TransportationWaterCrv', u'TransportationWaterPnt', u'TransportationWaterSrf', u'UtilityInfrastructureCrv', u'UtilityInfrastructurePnt', u'UtilityInfrastructureSrf', u'VegetationCrv', u'VegetationPnt', u'VegetationSrf', u'MetadataSrf', u'ResourceSrf']
 
 '''
 
@@ -68,18 +122,16 @@ query_scale = arcpy.GetParameter(7) # Scale value from list for query
 manual = arcpy.GetParameter(8)
 ## [9] "Custom Query (Ex: 'HGT' >= 46) - String"
 query_manual = arcpy.GetParameterAsText(9) # Custom query input
-## [10] "Extract Specific Feature Classes - Boolean"
-extract = arcpy.GetParameter(10)
-## [11] "Extract: - Feature Class"
-extract_fc = arcpy.GetParameterAsText(11)
-## [12] "Exclude Specific Feature Classes - Boolean"
-vogon = arcpy.GetParameter(12)
-## [13] "Exclude: - Feature Class"
-vogon_fc = arcpy.GetParameterAsText(13)
+## [10] "Extract Specific Feature Classes - String"
+specific = arcpy.GetParameter(10)
+## [11] "Extract Specific Feature Classes - String"
+fc_list_param = arcpy.GetParameter(11)
 # Get current time for gdb timestamp
 timestamp = dt.now().strftime("%Y%b%d_%H%M")
 arcpy.env.workspace = TDS
 arcpy.env.overwriteOutput = True
+
+
 
 
 ''''''''' General Functions '''''''''
