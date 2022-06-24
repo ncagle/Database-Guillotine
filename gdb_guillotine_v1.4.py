@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ======================== #
 # Database Guillotine v1.4 #
 # Nat Cagle 2022-06-07     #
@@ -49,6 +50,7 @@ import uuid
   - input name of GDB output
   - new param for folder location
   - option to use full extent of data instead of AOI
+  - re-add if ap.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
 
 
 '''
@@ -67,12 +69,12 @@ TDS_name = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # D
 create_GDB = ap.GetParameter(2)
 ## [3] Name for split GDB - String
 gdb_name = ap.GetParameterAsText(3)
-gdb_file = gdb_name + '.gdb'
+#gdb_file = gdb_name + '.gdb'
 ## [4] Destination folder for split GDB - Folder
 out_folder = ap.GetParameterAsText(4)
 ## [5] Blank GDB with schema - Workspace
 existing_GDB = ap.GetParameterAsText(5)
-existing_name = re.findall(r"[\w']+", os.path.basename(os.path.split(existing_GDB)[0]))[0] # Detailed breakdown in pull_local.trash.py
+existing_name = re.findall(r"[\w']+", os.path.split(existing_GDB)[-1])[0] # Detailed breakdown in pull_local.trash.py # Modified for GDB path not TDS path
 ## [6] Use full extent of data (No AOI) - Boolean
 no_AOI = ap.GetParameter(6)
 ## [7] AOI (Must be merged into a single feature) - Feature Class
@@ -82,7 +84,7 @@ query_scale = ap.GetParameter(8) # Scale value from list for query
 ## [9] Extract data using custom query - Boolean
 manual = ap.GetParameter(9)
 ## [10] Custom Query - String
-query_manual = ap.GetParameterAsText(10) # Ex: 'HGT' >= 46
+query_manual = ap.GetParameterAsText(10) # Ex: HGT >= 46
 ## [11] Extract specific feature classes - String
 vogon = ap.GetParameter(11)
 ## [12] Feature Class List - String
@@ -92,28 +94,6 @@ vogon_constructor_fleet = ap.GetParameter(12) # Said to hang in the air "the way
 ap.env.workspace = TDS
 ap.env.extent = TDS
 ap.env.overwriteOutput = True
-
-
-
-## [11] Extract specific feature classes - String
-## [12] Feature Class List - String
-"""
-
-    						(¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯)
-     						 )            Database  Guillotine            (
-							(   Source: {}
-if create_GDB:			    (     {gdb_name}
-							 )	- Creating new GDB based on source schema
-else:						(	- Extracting data to existing blank GDB
-if no_AOI:					 )	- Searching full extent of the data
-else:						 )	- Cutting features at AOI boundary
-if manual:					(	- Query: {query_manual}
-else:						(	- Query: ZI026_CTUU >= {query_scale}
-if vogon:					 )	- Only reading specified feature classes
-else:						 )	- Reading all source feature classes
-    						(_.·´¯`·.¸¸.·´¯`·.¸_.·´¯`·.¸¸.·´¯`·.¸_.·´¯`·.¸¸)
-
-"""
 
 
 
@@ -203,6 +183,90 @@ def writeresults(tool_name): # If tool fails, get messages and output error repo
 def get_count(fc_layer): # Returns feature count
 	results = int(ap.GetCount_management(fc_layer).getOutput(0))
 	return results
+
+def format_spacing(var, filled): # format line with the right amount of spacing for task_summary variables
+	exs = ''
+	spacing = 48 - filled - len(var)
+	if spacing > 0:
+		for i in range(spacing):
+			exs += ' '
+	return exs
+
+def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale): # Tool title, input, output, and list of user selected task options
+	# ¯ MACRON
+	# · MIDDLE DOT
+	# ¸ CEDILLA
+	# ´ ACUTE ACCENT
+	write(u"\n({2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2})".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
+	write(" )                                            ( ")
+	write("(           ~ Database  Guillotine ~           )")
+	write(" )   Source: {0}{1}( ".format(TDS_name, format_spacing(TDS_name, 15)))
+	if create_GDB:
+		write("(    Output: {0}{1} )".format(gdb_name, format_spacing(gdb_name, 15)))
+		write(" )   - Create new GDB based on source schema  ( ")
+	else:
+		write("(    Output: {0}{1} )".format(existing_name, format_spacing(existing_name, 15)))
+		write(" )   - Extract data to existing blank GDB     ( ")
+	if no_AOI:
+		write("(    - Search full extent of the data          )")
+	else:
+		write("(    - Cut features at AOI boundary            )")
+	if manual:
+		write(" )   - Query: {0}{1}( ".format(query_manual, format_spacing(query_manual, 16)))
+	else:
+		write(" )   - Query: ZI026_CTUU >= {0}{1}( ".format(query_scale, format_spacing(query_scale, 30)))
+	if vogon:
+		write("(    - Only read specified feature classes     )")
+	else:
+		write("(    - Read all source feature classes         )")
+	write(" )                                            ( ")
+	write(u"(_.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}_)\n".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
+	'''
+					"(¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯)"48
+					" )                                            ( "
+					"(           ~ Database  Guillotine ~           )"
+					" )   Source: {0}{1}                           ( ".format(TDS_name, format_spacing(TDS_name, 15))
+	if create_GDB:	"(    Output: {0}{1}                            )".format(gdb_name, format_spacing(gdb_name, 15))
+					" )   - Create new GDB based on source schema  ( "
+	else:			"(    Output: {0}{1}                            )".format(existing_name, format_spacing(existing_name, 15))
+					" )   - Extract data to existing blank GDB     ( "
+	if no_AOI:		"(    - Search full extent of the data          )"
+	else:			"(    - Cut features at AOI boundary            )"
+	if manual:		" )   - Query: {0}{1}                          ( ".format(query_manual, format_spacing(query_manual, 16))
+	else:			" )   - Query: ZI026_CTUU >= {0}{1}            ( ".format(query_scale, format_spacing(query_scale, 30))
+	if vogon:		"(    - Only read specified feature classes     )"
+	else:			"(    - Read all source feature classes         )"
+					" )                                            ( "
+					"(_.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸_)"
+	'''
+
+
+'''
+
+#¸¸.·´¯`·.¸¸.·´¯`·.¸¸
+# ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀
+
+
+   ¸·¸
+ ¸´   `¸
+ │  │  |
+  \  \·´
+ ·´\  \
+ │  │  |
+ '¸   ¸'
+   `.´
+___¸·¸
+_¸´   `¸
+_│  │  |
+__\  \·´
+_·´\  \
+_│  │  |
+_'¸   ¸'
+___`.´
+
+
+
+'''
 
 
 ''''''''' Task Functions '''''''''
@@ -336,19 +400,40 @@ def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geome
 			icursor.insertRow(row) # Insert the feature into the corresponding feature class in the target GDB
 	return inner_peace
 
-    if self.params[3].valueAsText != 'C:\Users\..' and self.params[3].enabled == 1:
-        if self.params[3].value.endswith('.gdb') and self.params[3].value != '':
-            self.params[3].value = self.params[3].value[:-len('.gdb')]
+
 ''''''''' Guillotine Function '''''''''
 def guillotine(fc_list, out_path, AOI):
 	## [2] Create GDB and schema from source TDS - Boolean
 	create_GDB = ap.GetParameter(2)
-	## [8] Extract Scale: ZI026_CTUU >= - String
-	query_scale = ap.GetParameter(8) # Scale value from list for query
 	## [9] Extract data using custom query - Boolean
 	manual = ap.GetParameter(9)
-	## [10] Custom Query - String
-	query_manual = ap.GetParameterAsText(10) # Ex: 'HGT' >= 46
+
+
+
+
+	if manual: # Allow for any field query to be made
+		## [10] Custom Query - String
+		query = ap.GetParameterAsText(10) # Ex: HGT >= 46
+		query_validation = query.lower().split(' ')
+		if len(query_validation) <= 1: # Not strictly necessary. Should have been confirmed in tool dialogue validation, but leaving it in as safety
+			write("\n**********\n\"{0}\" is not a valid query.\nPlease check for field delimiters such as quotes and ensure that unique values are separated by spaces.\n**********\n".format(query))
+			sys.exit(0)
+		write("query_validation: {0}\n".format(query_validation))
+	else: # Get query_scale and construct CTUU query with proper field delimiters
+		## [8] Extract Scale: ZI026_CTUU >= - String
+		query_scale = ap.GetParameter(8) # Scale value from list for query
+		query = """{0} >= {1}""".format(ap.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
+
+# add to validation checks
+Check if query has no spaces and throw error
+query_validation = query.lower().split(' ')
+if len(query_validation) <= 1:
+	write("\n**********\n\"{0}\" is not a valid query.\nPlease check for field delimiters such as quotes and ensure that unique values are separated by spaces.\n**********\n".format(query))
+	sys.exit(0)
+
+
+
+
 	out_tds = os.path.join(out_path, "TDS")
 	split_dict = {}
 	schema_mismatch = []
@@ -370,17 +455,29 @@ def guillotine(fc_list, out_path, AOI):
 		criss = False
 		start_cursor_search = dt.now()
 
-		#allow for any field query to be made
-		if manual:
-			query = query_manual
-		else:
-			query = """{0} >= {1}""".format(ap.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
 
-		### re-add if ap.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
+
+
+		arcpy.ListFields(fc) --> field_list = make_field_list(dsc)
+		#### still need to check that all fields in custom query exist and strip non alphanumeric chars
+		if [field.name for field in arcpy.ListFields(fc) if any(substring in field.name.lower() for substring in query_validation if substring)]:
+			write("{0} contains query fields".format(fc))
+			#write([field.name for field in arcpy.ListFields(fc) if any(substring in field.name.lower() for substring in query_validation if substring)])
+			#do the things
+		else:
+			write("  - \"{0}\" in {1} returned 0 records".format(query, fc))
+
+
+
+
+
+		# If the user is using an existing GDB and schema, check that each feature class is present in the target before continuing
+		# Output a warning if a feature class in the source does not exist in the target and continue to the next feature class without extracting data
+		# Saves schema mismatched feature classes and outputs a list at the end of the tool
 		if not create_GDB:
 			fc_path = os.path.join(out_tds, fc)
 			if not ap.Exists(fc_path):
-				write("*** The provided output GDB and schema does not match the schema of the source data for the {0} feature class! ***\n*** Progress will continue for feature classes that match the schema. A list of schema mismatched feature classes that were not copied will be provided after the tool has completed. ***")
+				write("*** The provided output GDB and schema does not match the schema of the source data for the {0} feature class! ***\n*** Progress will continue for feature classes that match the schema. A list of schema mismatched feature classes that were not copied will be provided after the tool has completed. ***".format(fc))
 				schema_mismatch.append(fc)
 				continue
 
@@ -538,25 +635,28 @@ def guillotine(fc_list, out_path, AOI):
 		write("\n")
 
 
-
 ''''''''' Main '''''''''
 # Get name of input database for either SDE or file GDB to construct output variables
 #gdb_name_raw = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
 #gdb_name = gdb_name_raw + "_" + timestamp
 if create_GDB:
 	xml_out = os.path.join(out_folder, gdb_name + "_schema.xml")
-	out_path = os.path.join(out_folder, gdb_file)
+	out_path = os.path.join(out_folder, gdb_name + ".gdb")
 	out_tds = os.path.join(out_path, "TDS")
 	make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds)
 	ap.env.workspace = TDS
 else:
 	out_path = existing_GDB
-write("\nSource TDS: {0}".format(TDS))
-write("\nSplit GDB output: {0}\n".format(out_path))
+	out_tds = os.path.join(out_path, "TDS")
+
+task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale)
+if vogon:
+	write("\nExtracting user specified feature classes:\n{0}\n".format(vogon_constructor_fleet))
 
 if no_AOI:
+	ap.env.extent = TDS
 	AOI = "in_memory\\the_grid" # A digital frontier.
-	ap.CopyFeatures_management(ap.env.extent.polygon, mem_fc)
+	ap.CopyFeatures_management(ap.env.extent.polygon, AOI)
 
 if not vogon:
 	fc_walk = ap.da.Walk(TDS, "FeatureClass")
@@ -569,8 +669,10 @@ else:
 	write("FCs loaded from input GDB: {0}\n".format(len(vogon_constructor_fleet)))
 	guillotine(vogon_constructor_fleet, out_path, AOI)
 
-ap.RefreshCatalog(out_tds)
 ap.RefreshCatalog(out_folder)
+ap.RefreshCatalog(out_tds)
+task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale)
+write("\nSplit GDB output location: {0}\n".format(out_path))
 
 
 
