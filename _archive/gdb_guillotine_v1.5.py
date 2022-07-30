@@ -1,7 +1,9 @@
-# -*- coding: utf-8 -*-
+# -*- #################
+#¸¸.·´¯`·.¸¸.·´¯`·.¸¸
+# ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀‾
 # ======================== #
-# Database Guillotine v1.4 #
-# Nat Cagle 2022-06-07     #
+# Database Guillotine v1.5 #
+# Nat Cagle 2022-07-21     #
 # ======================== #
 import arcpy as ap
 from arcpy import AddMessage as write
@@ -36,13 +38,21 @@ import uuid
 
 #### Update Plans
   - Add note to user that this only works on databases using the CTUU format. Does not work on CACI GDBs in the Scale format
-  - Use validation logic from AO tool to add .gdb to the name that the user provides for the extracted copy
     if self.params[5].value is not None:
         if self.params[5].value.endswith(".gdb") == False and self.params[5].value != "":
             self.params[5].value = self.params[5].value + ".gdb"
   - option to use custom query to extract data
   - checkbox list to choose specific feature classes to extract or not
   - checkbox for 50k LOC Features
+
+
+#######
+auto merge AOI into single feature so it can accept any AOI
+#######
+
+#######
+Use existing GDB doesn't work on SDE because the feature class names are sde_name.sde.featureclass
+#######
 
 
 ## Recent Changes
@@ -62,7 +72,7 @@ import uuid
 # Ask user if this is an SDE connection
 # if so, enable parameter asking if they logged in and are in the right connection location
 ## [0] If copying from SDE, did you log in? - Boolean
-## [1] TDS - Workspace
+## [1] TDS - Feature Dataset
 TDS = ap.GetParameterAsText(1)
 TDS_name = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
 ## [2] Create GDB and schema from source TDS - Boolean
@@ -73,22 +83,26 @@ gdb_name = ap.GetParameterAsText(3)
 ## [4] Destination folder for split GDB - Folder
 out_folder = ap.GetParameterAsText(4)
 ## [5] Blank GDB with schema - Workspace
-existing_GDB = ap.GetParameterAsText(5)
-existing_name = re.findall(r"[\w']+", os.path.split(existing_GDB)[-1])[0] # Detailed breakdown in pull_local.trash.py # Modified for GDB path not TDS path
+existing_GDB = ap.GetParameterAsText(5) # Default: "C:\Users\TDS_7_1_Blank.gdb"
 ## [6] Use full extent of data (No AOI) - Boolean
 no_AOI = ap.GetParameter(6)
 ## [7] AOI (Must be merged into a single feature) - Feature Class
 AOI = ap.GetParameterAsText(7)
 ## [8] Extract Scale: ZI026_CTUU >= - String
-query_scale = ap.GetParameter(8) # Scale value from list for query
+query_scale = "zi026_ctuu >= {0}".format(ap.GetParameterAsText(8)) # Scale value from list added to query
 ## [9] Extract data using custom query - Boolean
 manual = ap.GetParameter(9)
-## [10] Custom Query - String
-query_manual = ap.GetParameterAsText(10) # Ex: HGT >= 46
-## [11] Extract specific feature classes - String
-vogon = ap.GetParameter(11)
-## [12] Feature Class List - String
-vogon_constructor_fleet = ap.GetParameter(12) # Said to hang in the air "the way that bricks don't"
+## [10] Field Name Reference (Use to find field names in the Query Builder) - Multivalue String - Not used
+#field_ref = ap.GetParameter(10)
+## [11] Custom Query (Query Builder --->) - String
+# Obtained from Super Secret Parameter to get dynamic FC field names for SQL Query Builder option
+query_manual = ap.GetParameterAsText(11) # Ex: HGT >= 46
+## [12] Extract specific feature classes - Boolean
+vogon = ap.GetParameter(12)
+## [13] Feature Class List - String
+vogon_constructor_fleet = ap.GetParameter(13) # Said to hang in the air "the way that bricks don't"
+## [14] Super Secret Parameter: What is it for? Nobody knows... -
+# It is the middle-man for after the user chooses the Field Name Reference feature class. This parameter is set to the TDS path + the FNR FC. Feeds SQL Expression.
 # Get current time for gdb timestamp
 #timestamp = dt.now().strftime("%Y%b%d_%H%M")
 ap.env.workspace = TDS
@@ -136,7 +150,7 @@ def debug_view(**kwargs): # Input variable to view info in script output
 		else:
 			return
 
-def runtime(start,finish): # Time a process or code block
+def runtime(start, finish): # Time a process or code block
 	# Add a start and finish variable markers surrounding the code to be timed
 	#from datetime import datetime as dt
 	#start/finish = dt.now()
@@ -145,11 +159,19 @@ def runtime(start,finish): # Time a process or code block
 	h = int(time_delta/(60*60))
 	m = int((time_delta%(60*60))/60)
 	s = time_delta%60.
-	time_elapsed = "{}:{:>02}:{:>05.4f}".format(h, m, s) # 00:00:00.0000
+	#time_elapsed = "{}:{:>02}:{:>05.4f}".format(h, m, s) # 00:00:00.0000
+	if h and m and s:
+		time_elapsed = "{} hours {} minutes and {} seconds".format(h, m, round(s))
+	elif not h and m and s:
+		time_elapsed = "{} minutes and {:.1f} seconds".format(m, s)
+	elif not h and not m and s:
+		time_elapsed = "{:.3f} seconds".format(s)
+	else:
+		time_elapsed = 0
 	return time_elapsed
 
 def writeresults(tool_name): # If tool fails, get messages and output error report before endind process
-	write("\n\n***Failed to run {0}.***\n".format(tool_name))
+	ap.AddError("\n\n***Failed to run {0}.***\n".format(tool_name))
 	trace_back = ''
 	tb_info = ''
 	python_errors = ''
@@ -165,18 +187,18 @@ def writeresults(tool_name): # If tool fails, get messages and output error repo
 		pass
 
 	if len(warnings) > 0:
-		write("Tool Warnings:")
-		write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-		write(warnings)
-		write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-	write("Error Report:")
-	write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+		ap.AddError("Tool Warnings:")
+		ap.AddError("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+		ap.AddError(warnings)
+		ap.AddError("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+	ap.AddError("Error Report:")
+	ap.AddError("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 	ap.AddError(python_errors)
 	ap.AddError(arcpy_errors)
-	write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-	write('                       ______\n                    .-"      "-.\n                   /            \\\n       _          |              |          _\n      ( \\         |,  .-.  .-.  ,|         / )\n       > "=._     | )(__/  \\__)( |     _.=" <\n      (_/"=._"=._ |/     /\\     \\| _.="_.="\\_)\n             "=._ (_     ^^     _)"_.="\n                 "=\\__|IIIIII|__/="\n                _.="| \\IIIIII/ |"=._\n      _     _.="_.="\\          /"=._"=._     _\n     ( \\_.="_.="     `--------`     "=._"=._/ )\n      > _.="                            "=._ <\n     (_/                                    \\_)\n')
-	write("Please rerun the tool, but uncheck the {0} tool option.\nEither the feature class is too big or something else has gone wrong.".format(tool_name))
-	write("Exiting tool.\n")
+	ap.AddError("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+	ap.AddError('                       ______\n                    .-"      "-.\n                   /            \\\n       _          |              |          _\n      ( \\         |,  .-.  .-.  ,|         / )\n       > "=._     | )(__/  \\__)( |     _.=" <\n      (_/"=._"=._ |/     /\\     \\| _.="_.="\\_)\n             "=._ (_     ^^     _)"_.="\n                 "=\\__|IIIIII|__/="\n                _.="| \\IIIIII/ |"=._\n      _     _.="_.="\\          /"=._"=._     _\n     ( \\_.="_.="     `--------`     "=._"=._/ )\n      > _.="                            "=._ <\n     (_/                                    \\_)\n')
+	ap.AddError("Please double check the data and tool options before rerunning the tool.\nIt is possible one of the feature classes is too big or something else has gone wrong.".format(tool_name))
+	ap.AddError("Exiting tool.\n")
 	sys.exit(0)
 	#print(u'                 uuuuuuu\n             uu$$$$$$$$$$$uu\n          uu$$$$$$$$$$$$$$$$$uu\n         u$$$$$$$$$$$$$$$$$$$$$u\n        u$$$$$$$$$$$$$$$$$$$$$$$u\n       u$$$$$$$$$$$$$$$$$$$$$$$$$u\n       u$$$$$$$$$$$$$$$$$$$$$$$$$u\n       u$$$$$$"   "$$$"   "$$$$$$u\n       "$$$$"      u$u       $$$$"\n        $$$u       u$u       u$$$\n        $$$u      u$$$u      u$$$\n         "$$$$uu$$$   $$$uu$$$$"\n          "$$$$$$$"   "$$$$$$$"\n            u$$$$$$$u$$$$$$$u\n             u$"|¨|¨|¨|¨|"$u\n  uuu        $$u|¯|¯|¯|¯|u$$       uuu\n u$$$$        $$$$$u$u$u$$$       u$$$$\n  $$$$$uu      "$$$$$$$$$"     uu$$$$$$\nu$$$$$$$$$$$uu    """""    uuuu$$$$$$$$$$\n$$$$"""$$$$$$$$$$uuu   uu$$$$$$$$$"""$$$"\n """      ""$$$$$$$$$$$uu ""$"""\n           uuuu ""$$$$$$$$$$uuu\n  u$$$uuu$$$$$$$$$uu ""$$$$$$$$$$$uuu$$$\n  $$$$$$$$$$""""           ""$$$$$$$$$$$"\n   "$$$$$"                      ""$$$$""\n     $$$"                         $$$$"')
 
@@ -192,7 +214,7 @@ def format_spacing(var, filled): # format line with the right amount of spacing 
 			exs += ' '
 	return exs
 
-def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale): # Tool title, input, output, and list of user selected task options
+def task_summary():#TDS_name, gdb_name, existing_name, query_manual, query_scale): # Tool title, input, output, and list of user selected task options
 	# ¯ MACRON
 	# · MIDDLE DOT
 	# ¸ CEDILLA
@@ -205,6 +227,7 @@ def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale): 
 		write("(    Output: {0}{1} )".format(gdb_name, format_spacing(gdb_name, 15)))
 		write(" )   - Create new GDB based on source schema  ( ")
 	else:
+		existing_name = re.findall(r"[\w']+", os.path.split(existing_GDB)[-1])[0] # Detailed breakdown in pull_local.trash.py # Modified for GDB path not TDS path
 		write("(    Output: {0}{1} )".format(existing_name, format_spacing(existing_name, 15)))
 		write(" )   - Extract data to existing blank GDB     ( ")
 	if no_AOI:
@@ -214,13 +237,15 @@ def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale): 
 	if manual:
 		write(" )   - Query: {0}{1}( ".format(query_manual, format_spacing(query_manual, 16)))
 	else:
-		write(" )   - Query: ZI026_CTUU >= {0}{1}( ".format(query_scale, format_spacing(query_scale, 30)))
+		write(" )   - Query: {0}              {1}( ".format(query_scale, format_spacing(query_scale, 30)))
 	if vogon:
 		write("(    - Only read specified feature classes     )")
 	else:
 		write("(    - Read all source feature classes         )")
-	write(" )                                            ( ")
-	write(u"(_.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}_)\n".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
+	write(" )                                   _        ( ")
+	write("(                                 __(.)<       )")
+	#write(u"(_.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}_)\n".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
+	write(u"(_.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`\\___){0}{1}{2}`{0}.{3}_)\n".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
 	'''
 					"(¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯)"48
 					" )                                            ( "
@@ -236,37 +261,20 @@ def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale): 
 	else:			" )   - Query: ZI026_CTUU >= {0}{1}            ( ".format(query_scale, format_spacing(query_scale, 30))
 	if vogon:		"(    - Only read specified feature classes     )"
 	else:			"(    - Read all source feature classes         )"
-					" )                                            ( "
-					"(_.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸_)"
+					" )                                   _        ( "
+					"(                                 __(.)<       )"
+					"(_.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`\___)·´¯`·.¸_)"
 	'''
-
-
-'''
-
-#¸¸.·´¯`·.¸¸.·´¯`·.¸¸
-# ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀
-
-
-   ¸·¸
- ¸´   `¸
- │  │  |
-  \  \·´
- ·´\  \
- │  │  |
- '¸   ¸'
-   `.´
-___¸·¸
-_¸´   `¸
-_│  │  |
-__\  \·´
-_·´\  \
-_│  │  |
-_'¸   ¸'
-___`.´
-
-
-
-'''
+	'''
+	   ¸·¸
+	 ¸´   `¸
+	 │  │  |
+	  \  \·´
+	 ·´\  \
+	 │  │  |
+	 '¸   ¸'
+	   `.´
+	'''
 
 
 ''''''''' Task Functions '''''''''
@@ -352,7 +360,7 @@ def make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds): # Cr
 	finish_schema = dt.now()
 	write("Time to create local GDB with schema: {0}".format(runtime(start_schema,finish_schema)))
 
-def fractinull(shp):#, fc_name, oid): # Checks for NULL geometry
+def fractinull(shp): # Checks for NULL geometry
 	# If geometry is NULL, output the feature class and OID and continue to next feature
 	#fractinull(geometry_obj, fc_name, oid)
 	oh_dear_god = False
@@ -402,37 +410,16 @@ def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geome
 
 
 ''''''''' Guillotine Function '''''''''
-def guillotine(fc_list, out_path, AOI):
-	## [2] Create GDB and schema from source TDS - Boolean
-	create_GDB = ap.GetParameter(2)
-	## [9] Extract data using custom query - Boolean
-	manual = ap.GetParameter(9)
-
-
-
-
+def guillotine(fc_list, out_path):
 	if manual: # Allow for any field query to be made
-		## [10] Custom Query - String
-		query = ap.GetParameterAsText(10) # Ex: HGT >= 46
-		query_validation = query.lower().split(' ')
+		# Obtained from Super Secret Parameter to get dynamic FC field names for SQL Query Builder option
+		query = query_manual
+		query_validation = query.split(' ')
 		if len(query_validation) <= 1: # Not strictly necessary. Should have been confirmed in tool dialogue validation, but leaving it in as safety
-			write("\n**********\n\"{0}\" is not a valid query.\nPlease check for field delimiters such as quotes and ensure that unique values are separated by spaces.\n**********\n".format(query))
+			ap.AddError("\n**********\n\"{0}\" is not a valid query.\nPlease check for field delimiters such as quotes and ensure that unique values are separated by spaces.\n**********\n".format(query))
 			sys.exit(0)
-		write("query_validation: {0}\n".format(query_validation))
-	else: # Get query_scale and construct CTUU query with proper field delimiters
-		## [8] Extract Scale: ZI026_CTUU >= - String
-		query_scale = ap.GetParameter(8) # Scale value from list for query
-		query = """{0} >= {1}""".format(ap.AddFieldDelimiters(fc, 'zi026_ctuu'), query_scale)
-
-# add to validation checks
-Check if query has no spaces and throw error
-query_validation = query.lower().split(' ')
-if len(query_validation) <= 1:
-	write("\n**********\n\"{0}\" is not a valid query.\nPlease check for field delimiters such as quotes and ensure that unique values are separated by spaces.\n**********\n".format(query))
-	sys.exit(0)
-
-
-
+	else:
+		query = query_scale # "zi026_ctuu >= {0}".format(ap.GetParameterAsText(8)) # Scale value from list added to query
 
 	out_tds = os.path.join(out_path, "TDS")
 	split_dict = {}
@@ -440,7 +427,7 @@ if len(query_validation) <= 1:
 	for fc in fc_list:
 		write("")
 		total_feats = get_count(fc)
-		if total_feats == 0:
+		if not total_feats:
 			write("{0} is empty\n".format(fc))
 			continue
 
@@ -454,22 +441,6 @@ if len(query_validation) <= 1:
 		f_count = 0
 		criss = False
 		start_cursor_search = dt.now()
-
-
-
-
-		arcpy.ListFields(fc) --> field_list = make_field_list(dsc)
-		#### still need to check that all fields in custom query exist and strip non alphanumeric chars
-		if [field.name for field in arcpy.ListFields(fc) if any(substring in field.name.lower() for substring in query_validation if substring)]:
-			write("{0} contains query fields".format(fc))
-			#write([field.name for field in arcpy.ListFields(fc) if any(substring in field.name.lower() for substring in query_validation if substring)])
-			#do the things
-		else:
-			write("  - \"{0}\" in {1} returned 0 records".format(query, fc))
-
-
-
-
 
 		# If the user is using an existing GDB and schema, check that each feature class is present in the target before continuing
 		# Output a warning if a feature class in the source does not exist in the target and continue to the next feature class without extracting data
@@ -489,11 +460,14 @@ if len(query_validation) <= 1:
 			if aoi_shp is None: # Must check for NULL geometry before using any geometry methods
 				write("NULL geometry found in input AOI. Please check the AOI polygon and try again.")
 				sys.exit(0) # If the AOI polygon has NULL geometry, exit the tool. The AOI needs to be checked by the user
-			try:
-				if 'MetadataSrf' in fc or 'ResourceSrf' in fc: # Check for these first since they are a special case
-					query = '' # Metadata and Resource surfaces have different fields. Copy them regardless of query. Can be excluded in Advanced Options.
-					write("Found {0}. Ignoring ctuu query and copying all within provided AOI.".format(fc))
-					with ap.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields
+
+			if 'MetadataSrf' in fc or 'ResourceSrf' in fc: # Check for these first since they are a special case
+				if manual:
+					continue
+				try:
+					mr_query = '' # Metadata and Resource surfaces have different fields. Copy them regardless of query. Can be excluded in Advanced Options.
+					write("Found {0}. Ignoring queries and copying all within provided AOI.".format(fc))
+					with ap.da.SearchCursor(input_fc, field_list, mr_query) as input_scursor: # Search the input feature class with the specified fields
 						with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
 							for irow in input_scursor: # Loop thru each Metadata or Resource surface in the input feature class
 								input_shp = irow[-1] # Geometry object of current feature
@@ -503,65 +477,77 @@ if len(query_validation) <= 1:
 								if within_insert(aoi_shp, local_icursor, irow, False): # If feature's centroid is within the AOI, insert it into the new GDB
 									f_count +=1
 									continue
-				else: # Proceed assuming normal TDS feature classes
+				except ap.ExecuteError:
+					writeresults("Guillotine on MetadataSrf/ResourceSrf")
+			else: # Proceed assuming normal TDS feature classes
+				try:
 					with ap.da.SearchCursor(input_fc, field_list, query) as input_scursor: # Search the input feature class with the specified fields and user defined query
-						if fc_type == 'Point': # Points are either within or without the AOI
-							with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
-								for irow in input_scursor: # Loop thru each point in the input feature class
-									input_shp = irow[-1] # Geometry object of current point
-									if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
-										continue
-									# Point specific method
-									if within_insert(aoi_shp, local_icursor, irow, False): # If point is within the AOI, insert it into the new GDB
-										f_count +=1
-										continue
-						if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
-							ap.AddField_management(local_fc, og_oid, "long")
-							field_list.insert(-2, og_oid)
-							with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
-								for irow in input_scursor: # Loop thru each point in the input feature class
-									input_shp = irow[-1] # Geometry object of current line
-									input_oid = irow[-2] # OID object of current row
-									if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
-										continue
-									# Line specific method
-									if crosses_insert(aoi_shp, local_icursor, irow): # Check if line crosses AOI before within then clip, insert, and continue
-										if criss is False: # If the crossing feature is the first in the fc
-											split_dict[fc_name] = [input_oid] # Create a dictionary key of the feature class with the source oid in a list
-											criss = True # Mark the current fc as having at least one crossing feature and the fc_name dictionary key has been made
-										elif criss is True: # If a crossing feature has already been found and the initial fc_name dictionary key is set up
-											split_dict[fc_name].append(input_oid) # Append the source oid to the list of the current fc
-										f_count +=1
-										continue
-									if within_insert(aoi_shp, local_icursor, irow, True): # If line doesn't cross AOI and is within(Clementini) then insert and continue
-										f_count +=1
-										continue
-						if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
-							ap.AddField_management(local_fc, og_oid, "long")
-							field_list.insert(-2, og_oid)
-							aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
-							with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
-								for irow in input_scursor: # Loop thru each point in the input feature class
-									input_shp = irow[-1] # Geometry object of current polygon
-									input_oid = irow[-2] # OID object of current row
-									if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
-										continue
-									# Polygon specific method
-									if crosses_insert(aoi_shp, local_icursor, irow): # Check if polygon crosses AOI before within then clip, insert, and continue
-										if criss is False: # If the crossing feature is the first in the fc
-											split_dict[fc_name] = [input_oid] # Create a dictionary key of the feature class with the source oid in a list
-											criss = True # Mark the current fc as having at least one crossing feature and the fc_name dictionary key has been made
-										elif criss is True: # If a crossing feature has already been found and the initial fc_name dictionary key is set up
-											split_dict[fc_name].append(input_oid) # Append the source oid to the list of the current fc
-										f_count +=1
-										continue
-									if within_insert(aoi_shp, local_icursor, irow, True): # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
-										f_count +=1
-										continue
-			except ap.ExecuteError:
-				if manual:
-					write("\n\n*** Check custom data query. ***\n<< {0} >> may not be a valid SQL query for the data.\n\n".format(query))
-				writeresults("Guillotine")
+						try:
+							if fc_type == 'Point': # Points are either within or without the AOI
+								with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
+									for irow in input_scursor: # Loop thru each point in the input feature class
+										input_shp = irow[-1] # Geometry object of current point
+										if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+											continue
+										# Point specific method
+										if within_insert(aoi_shp, local_icursor, irow, False): # If point is within the AOI, insert it into the new GDB
+											f_count +=1
+											continue
+
+							if fc_type == 'Polyline': # Lines can cross the AOI boundary or be fully within
+								ap.AddField_management(local_fc, og_oid, "long")
+								field_list.insert(-2, og_oid)
+								with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
+									for irow in input_scursor: # Loop thru each point in the input feature class
+										input_shp = irow[-1] # Geometry object of current line
+										input_oid = irow[-2] # OID object of current row
+										if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+											continue
+										# Line specific method
+										if crosses_insert(aoi_shp, local_icursor, irow): # Check if line crosses AOI before within then clip, insert, and continue
+											if criss is False: # If the crossing feature is the first in the fc
+												split_dict[fc_name] = [input_oid] # Create a dictionary key of the feature class with the source oid in a list
+												criss = True # Mark the current fc as having at least one crossing feature and the fc_name dictionary key has been made
+											elif criss is True: # If a crossing feature has already been found and the initial fc_name dictionary key is set up
+												split_dict[fc_name].append(input_oid) # Append the source oid to the list of the current fc
+											f_count +=1
+											continue
+										if within_insert(aoi_shp, local_icursor, irow, True): # If line doesn't cross AOI and is within(Clementini) then insert and continue
+											f_count +=1
+											continue
+
+							if fc_type == 'Polygon': # Polygons can cross the AOI boundary or be fully within
+								ap.AddField_management(local_fc, og_oid, "long")
+								field_list.insert(-2, og_oid)
+								aoi_line = aoi_shp.boundary() # Line geometry object of the AOI boundary
+								with ap.da.InsertCursor(local_fc, field_list) as local_icursor:
+									for irow in input_scursor: # Loop thru each point in the input feature class
+										input_shp = irow[-1] # Geometry object of current polygon
+										input_oid = irow[-2] # OID object of current row
+										if fractinull(input_shp):#, fc_name, input_oid): # Must check for NULL geometry before using any geometry methods
+											continue
+										# Polygon specific method
+										if crosses_insert(aoi_shp, local_icursor, irow): # Check if polygon crosses AOI before within then clip, insert, and continue
+											if criss is False: # If the crossing feature is the first in the fc
+												split_dict[fc_name] = [input_oid] # Create a dictionary key of the feature class with the source oid in a list
+												criss = True # Mark the current fc as having at least one crossing feature and the fc_name dictionary key has been made
+											elif criss is True: # If a crossing feature has already been found and the initial fc_name dictionary key is set up
+												split_dict[fc_name].append(input_oid) # Append the source oid to the list of the current fc
+											f_count +=1
+											continue
+										if within_insert(aoi_shp, local_icursor, irow, True): # If polygon doesn't cross AOI and its centroid is within(Clementini) then insert and continue
+											f_count +=1
+											continue
+
+						except ap.ExecuteError:
+							writeresults("Guillotine on extracting {0}".format(fc))
+				except:
+					if manual:
+						write("{0} does not contain field specified in custom query. Continuing to next.\n".format(fc))
+						continue
+					else:
+						writeresults("Guillotine starting search of {0}.".format(fc))
+
 		# Clean up, runtime, and feature count outputs
 		write("Copied {0} of {1} {2} features local".format(f_count, total_feats, fc_name))
 		if not criss:
@@ -579,6 +565,7 @@ if len(query_validation) <= 1:
 			oid_query = """{0} IS NOT NULL""".format(ap.AddFieldDelimiters(local_fc, og_oid))
 			# Create a new feature class to put the multipart features in to decrease processing time. fields based on original fc template
 			ap.CreateFeatureclass_management(out_tds, "multi", fc_type, local_fc, "", "", out_tds)
+
 			# Add multipart features to new feature class based on OID
 			incount = 0
 			with ap.da.SearchCursor(local_fc, field_list, oid_query) as scursor: # Search current fc using for only OIDs that are in the multipart oid_list.
@@ -586,7 +573,8 @@ if len(query_validation) <= 1:
 					for srow in scursor:
 						incount +=1
 						icursor.insertRow(srow) # Insert that feature row into the temp feature class, in_class "multi"
-			write("Added {0} features to in_class, running multipart to singlepart".format(incount))
+
+			write("Added {0} features to in_class, multipart rupture in progress.".format(incount))
 			ap.MultipartToSinglepart_management(in_class, out_class) # New feature class output of just the converted single parts
 			with ap.da.UpdateCursor(local_fc, og_oid, oid_query) as ucursor: # Deletes features in fc that have OIDs flagged as multiparts from the oid_list
 				for urow in ucursor:
@@ -596,39 +584,36 @@ if len(query_validation) <= 1:
 				for urow in ucursor:
 					urow[0] = str(uuid.uuid4())
 					ucursor.updateRow(urow)
+
 			# out_class is one field shorter than the local_fc and they need to match to insert the row
-
-
-
-			#field_list = [field.name for field in fields if field.type not in ['Geometry'] and not any(substring in field.name.lower() for substring in out_fields if substring)]
-			#s_lower in (string.lower() for string in list1)
 			field_list = [field for field in field_list if 'globalid' not in field.lower()]
-			#field_list.remove('globalid') # local_fc has a 'globalid' field that out_class does not. out_class also has an 'ORIG_FID' field that isn't in local_fc, but we only need to remove 'globalid' since it doesn't exist in out_class. The lengths should match and be able to insert
-
-
-
 			with ap.da.SearchCursor(out_class, field_list) as scursor: # Insert new rows in fc from MultipartToSinglepart output out_class
 				with ap.da.InsertCursor(local_fc, field_list) as icursor:
 					for srow in scursor:
 						write("Inserting feature OID {0} from out_class to local_fc after explode.".format(srow[-3]))
 						icursor.insertRow(srow)
+
 			try:
-				write("Deleting in_class and out_class from current loop")
+				write("Deleting in_class and out_class from current loop.")
 				ap.Delete_management(in_class)
 				ap.Delete_management(out_class)
 			except:
 				write("No in_class or out_class created. Or processing layers have already been cleaned up. Continuing...")
 				pass
 			write("Finished exploding split features in {0}".format(fc_name))
+
 		finish_cursor_search = dt.now() # Stop runtime clock
 		write("Time elapsed to search {0}: {1}\n".format(fc_name, runtime(start_cursor_search, finish_cursor_search)))
-	write("\n\nHere is a list of source database feature OIDs that crossed the AOI boundary and were split in the output.")
-	write("Use this with Select by Attribute if you wish to confirm that features were split properly.\n")
-	split_list = split_dict.keys()
-	split_list.sort()
-	for fc in split_list:
-		write("{0}:\n{1}\n".format(fc, split_dict[fc]))
-	write("\n")
+
+	if split_dict:
+		write("\n\nHere is a list of source database feature OIDs that crossed the AOI boundary and were split in the output.")
+		write("Use this with Select by Attribute if you wish to confirm that features were split properly.\n")
+		split_list = split_dict.keys()
+		split_list.sort()
+		for fc in split_list:
+			write("{0}:\n{1}\n".format(fc, split_dict[fc]))
+		write("\n")
+
 	if schema_mismatch:
 		write("*** The blank GDB and schema provided did not match the source data for all feature classes. ***\n*** The following mismatched feature classes were not copied. ***\n")
 		write(schema_mismatch)
@@ -640,39 +625,68 @@ if len(query_validation) <= 1:
 #gdb_name_raw = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
 #gdb_name = gdb_name_raw + "_" + timestamp
 if create_GDB:
+	existing_name = existing_GDB #
 	xml_out = os.path.join(out_folder, gdb_name + "_schema.xml")
 	out_path = os.path.join(out_folder, gdb_name + ".gdb")
 	out_tds = os.path.join(out_path, "TDS")
 	make_gdb_schema(TDS, xml_out, out_folder, gdb_name, out_path, out_tds)
 	ap.env.workspace = TDS
 else:
+	existing_name = re.findall(r"[\w']+", os.path.split(existing_GDB)[-1])[0] # Detailed breakdown in pull_local.trash.py # Modified for GDB path not TDS path
 	out_path = existing_GDB
 	out_tds = os.path.join(out_path, "TDS")
 
-task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale)
-if vogon:
-	write("\nExtracting user specified feature classes:\n{0}\n".format(vogon_constructor_fleet))
+
+task_summary()
+#### Add this to task summary
+# if vogon:
+# 	write("\nExtracting user specified feature classes:")
+# 	for fc in vogon_constructor_fleet: write(fc)
+# 	write("")
+
 
 if no_AOI:
 	ap.env.extent = TDS
 	AOI = "in_memory\\the_grid" # A digital frontier.
 	ap.CopyFeatures_management(ap.env.extent.polygon, AOI)
 
+
 if not vogon:
 	fc_walk = ap.da.Walk(TDS, "FeatureClass")
 	for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to navigate inconsistent SDEs. Also works on local.
 		filenames.sort()
 		write("FCs loaded from input GDB: {0}\n".format(len(filenames)))
-		guillotine(filenames, out_path, AOI)
+		guillotine(filenames, out_path)
 else:
 	vogon_constructor_fleet.sort()
+	write("\nExtracting user specified feature classes:")
+	for fc in vogon_constructor_fleet: write(fc)
 	write("FCs loaded from input GDB: {0}\n".format(len(vogon_constructor_fleet)))
-	guillotine(vogon_constructor_fleet, out_path, AOI)
+	guillotine(vogon_constructor_fleet, out_path)
+
 
 ap.RefreshCatalog(out_folder)
 ap.RefreshCatalog(out_tds)
-task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale)
+task_summary()
 write("\nSplit GDB output location: {0}\n".format(out_path))
+
+
+
+
+### Trash Pile ###
+
+
+#def task_summary(TDS_name, gdb_name, existing_name, query_manual, query_scale):
+
+
+# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
+			# out_class is one field shorter than the local_fc and they need to match to insert the row
+
+			#field_list = [field.name for field in fields if field.type not in ['Geometry'] and not any(substring in field.name.lower() for substring in out_fields if substring)]
+			#s_lower in (string.lower() for string in list1)
+			#field_list = [field for field in field_list if 'globalid' not in field.lower()]
+			#field_list.remove('globalid') # local_fc has a 'globalid' field that out_class does not. out_class also has an 'ORIG_FID' field that isn't in local_fc, but we only need to remove 'globalid' since it doesn't exist in out_class. The lengths should match and be able to insert
+# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
 
 
 
@@ -831,3 +845,4 @@ write("\nSplit GDB output location: {0}\n".format(out_path))
 		# for fc in split_list:
 		# 	write("{0}:\n{1}\n".format(fc, split_dict[fc]))
 		# write("\n")
+
