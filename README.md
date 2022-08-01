@@ -20,7 +20,7 @@ comment block
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
+<!-- [![LinkedIn][linkedin-shield]][linkedin-url] -->
 
 
 
@@ -28,14 +28,14 @@ comment block
 <br />
 <div align="center">
   <a href="https://github.com/ncagle/Database-Guillotine">
-    <img src="images/toolbox_v1_6.png" alt="Logo" width="80" height="80">
+    <img src="images/guillotine_small.jpg" alt="Logo" width="100" height="100">
   </a>
 
-<h3 align="center">Database Guillotine</h3>
+<h1 align="center">Database Guillotine</h1>
 
   <p align="center">
-    An ArcPy tool that splits a dataset based on an custom queries, AOI polygons, specific feature classes, and more.
-    <br />
+    An ArcPy tool that splits a dataset based on an 
+    custom queries, AOI polygons, specific feature classes, and more.
     <br />
     <a href="https://github.com/github_username/repo_name/issues">Report Bug</a>
     ·
@@ -77,25 +77,29 @@ comment block
   </ol>
 </details>
 
-
+____________________________________________________________
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Toolbox Screen Shot][tool-screenshot]]
-<a href="https://github.com/ncagle/Database-Guillotine">
-    <img src="images/toolbox_v1_6.png" alt="Logo" width="800" height="800">
-  </a>
+The Database Guillotine is used to extract or split TDS datasets. You can split a local dataset or a connected SDE dataset. The tool can either create a new GDB and clone the source schema, or use an existing blank GDB with a schema that matches the source. The data can be extracted based on the full extent of the dataset or with a user created AOI. The AOI must be merged into one polygon (multiparts are allowed). By default, the Extract Scale option has a drop-down list of CTUU values to choose from. The tool will extract all data with a CTUU greater than or equal to the chosen value. All options can be used in combination with each other.
 
-Here's a blank template to get started: To avoid retyping too much info.
+In the Advanced Options section, a custom query can be used to extract data. Choosing this option will cancel out the Extract Scale option above. The Custom Query field has a button to access the Query Builder interface for constructing your query. In order to view field names in the Query Builder, you must first choose a feature class from the Field Name Reference drop-down. The Query Builder references the chosen feature class to make the list of field names shown in the interface. Different feature classes have different fields, but many of them overlap. You can use any feature class to find the CTUU field, but only TransportationGroundCrvs will have the RIN_ROI field. TransportationGroundCrvs is a good option for the most common field names.
+
+The next advanced option is to Extract Specific Feature Classes. Once the dataset input is added, the Feature Class List for this option will populate with all the available feature classes. They are all checked by default. You can uncheck specific feature classes you do not want extracted, such as StructurePnt/StructureSrf. Or you can unselect all of them at once and then check only a few feature classes. Be aware that the output database will still have all the feature classes in the dataset, but if they were not extracted, there won't be any features in them.
+
+[![Toolbox Screen Shot][tool-screenshot]
+
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
-
+____________________________________________________________
 
 ### Built With
 
-* [![Python 2.7][Python]][Python-url]
+[![Python 2.7][Python]][Python-url]
+
+[![made-with-python](http://ForTheBadge.com/images/badges/made-with-python.svg)](https://www.python.org/)
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -106,14 +110,16 @@ Here's a blank template to get started: To avoid retyping too much info.
 * ArcMap Desktop 10.5+
 * Python 2.7
 
+
+
 ### Installation
 
-1. Download the .tbx ArcGIS Toolbox
-2. In ArcMap or ArcCatalog, open the tool box and double click "Database Guillotine"
+1. Download the ArcGIS Toolbox (.tbx)
+2. In ArcMap or ArcCatalog, open the toolbox and double click "Database Guillotine"
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
-
+____________________________________________________________
 
 <!-- ROADMAP -->
 ## Roadmap
@@ -134,7 +140,7 @@ Use this space to show useful examples of how a project can be used. Additional 
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
-
+____________________________________________________________
 
 <!-- LICENSE -->
 ## License
@@ -149,6 +155,8 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 ## Contact
 
 Project Link: [https://github.com/ncagle/Database-Guillotine](github.com/ncagle/Database-Guillotine)
+
+[![LinkedIn][linkedin-shield]][linkedin-url]
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -179,5 +187,5 @@ Project Link: [https://github.com/ncagle/Database-Guillotine](github.com/ncagle/
 [linkedin-url]: https://www.linkedin.com/in/ncagle/
 [tool-screenshot]: images/toolbox_v1_6.png
 [tool-logo]: images/guillotine_small.jpg
-[Python]: https://img.shields.io/badge/python-2.7-blue?style=for-the-badge&logo=nextdotjs&logoColor=white
+[Python]: https://img.shields.io/badge/python-2.7-blue?style=for-the-badge&logo=python&logoColor=white
 [Python-url]: https://python.org/ 
