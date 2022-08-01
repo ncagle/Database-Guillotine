@@ -13,6 +13,7 @@ comment block
 *** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
 *** https://www.markdownguide.org/basic-syntax/#reference-style-links
 -->
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -86,6 +87,7 @@ In the Advanced Options section, a custom query can be used to extract data. Cho
 
 The next advanced option is to Extract Specific Feature Classes. Once the dataset input is added, the Feature Class List for this option will populate with all the available feature classes. They are all checked by default. You can uncheck specific feature classes you do not want extracted, such as StructurePnt/StructureSrf. Or you can unselect all of them at once and then check only a few feature classes. Be aware that the output database will still have all the feature classes in the dataset, but if they were not extracted, there won't be any features in them.
 
+<br/>
 
 ![Toolbox Screen Shot][tool-screenshot]
 
@@ -96,8 +98,6 @@ ____________________________________________________________
 ### Built With
 
 [![Python 2.7][Python]][Python-url]
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
@@ -243,8 +243,6 @@ ____________________________________________________________
 
 Distributed under the MIT License. See `LICENSE.txt` for more information.
 
-<p align="right">(<a href="#top">back to top</a>)</p>
-
 
 
 <!-- CONTACT -->
@@ -253,8 +251,6 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 Project Link - [https://github.com/ncagle/Database-Guillotine](github.com/ncagle/Database-Guillotine)
 
 Nat Cagle - [![LinkedIn][linkedin-shield]][linkedin-url]
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
