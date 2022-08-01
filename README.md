@@ -30,7 +30,11 @@ comment block
     <img src="images/guillotine_small.jpg" alt="Logo" width="136" height="188">
   </a>
 
-<h1 align="center">Database Guillotine</h1>
+  <h1 align="center">
+    Database Guillotine
+    <br/>
+    <sub>by Nat Cagle</sub>
+  </h1>
 
   <p align="center">
     An ArcGIS python script tool that splits a dataset based on an<br>
@@ -248,16 +252,19 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 <!-- CONTACT -->
 ## Contact
 
-Project Link - [https://github.com/ncagle/Database-Guillotine](github.com/ncagle/Database-Guillotine)
+Project Link - <a href="https://github.com/ncagle/Database-Guillotine">Database Guillotine</a>
 
-Nat Cagle - [![LinkedIn][linkedin-shield]][linkedin-url]
+Nat Cagle - <a href="https://github.com/ncagle">github.com/ncagle</a>
+
+[![LinkedIn][linkedin-shield]][linkedin-url]
 
 
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-* J. Jackson [https://github.com/adab5urdum](github.com/adab5urdum)
+* John Jackson - <a href="https://github.com/adab5urdum">github.com/adab5urdum</a>
+* Guillotine Logo Image by <a href="https://www.vectorportal.com">Vectorportal.com</a>,  <a class="external text" href="https://creativecommons.org/licenses/by/4.0/" >CC BY</a>
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
