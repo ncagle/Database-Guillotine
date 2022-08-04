@@ -37,8 +37,8 @@ comment block
   </h1>
 
   <p align="center">
-    An ArcGIS python script tool that splits a dataset based on an<br>
-    custom queries, AOI polygons, or specific feature classes.
+    An ArcGIS python script tool that extracts, splits, or dataloads a dataset<br>
+    based on custom queries, AOI polygons, or specific feature classes.
     <br />
     <a href="https://github.com/github_username/repo_name/issues">Report Bug</a>
     ·
@@ -85,7 +85,7 @@ ____________________________________________________________
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-The Database Guillotine is used to extract or split TDS datasets. You can split a local dataset or a connected SDE dataset. The tool can either create a new GDB and clone the source schema, or use an existing blank GDB with a schema that matches the source. The data can be extracted based on the full extent of the dataset or with a user created AOI. The AOI must be merged into one polygon (multiparts are allowed). By default, the Extract Scale option has a drop-down list of CTUU values to choose from. The tool will extract all data with a CTUU greater than or equal to the chosen value. All options can be used in combination with each other.
+The Database Guillotine is used to extract, split, or dataload TDS datasets. You can split a local dataset or a connected SDE dataset. The tool can create a new GDB and clone the source schema, or dataload the source into a GDB that already has data or an empty GDB. The schemas must match to do this. The data can be extracted based on the full extent of the dataset or with a user created AOI. The AOI must be merged into one polygon (multiparts are allowed). By default, the Extract Scale option has a drop-down list of CTUU values to choose from. The tool will extract all data with a CTUU greater than or equal to the chosen value. All options can be used in combination with each other.
 
 In the Advanced Options section, a custom query can be used to extract data. Choosing this option will cancel out the Extract Scale option above. The Custom Query field has a button to access the Query Builder interface for constructing your query. In order to view field names in the Query Builder, you must first choose a feature class from the Field Name Reference drop-down. The Query Builder references the chosen feature class to make the list of field names shown in the interface. Different feature classes have different fields, but many of them overlap. You can use any feature class to find the CTUU field, but only TransportationGroundCrvs will have the RIN_ROI field. TransportationGroundCrvs is a good option for the most common field names.
 
@@ -145,7 +145,7 @@ ____________________________________________________________
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-**Create GDB and schema from source TDS**
+**Create new GDB and clone source schema**
 > This will create a new GDB in the chosen folder and clone the schema from the source dataset. This ensures that all the features being extracted match the source they are coming from.
 
 <br/>
@@ -162,8 +162,13 @@ ____________________________________________________________
 
 <br/>
 
-**Blank GDB with schema**
-> If you choose to provide your own existing GDB, be sure that the schemas match.
+**Dataload into existing data or empty GDB**
+> Instead of creating a new GDB, source features can be dataloaded into a provided GDB with a matching schema. This can replace the ArcCatalog Data Loader tool and its various Cross-Reference databases.
+> 
+> If the provided GDB is empty, only the extracted source features will appear in the GDB when the tool is finished.
+> 
+> If the provided GDB already has existing features, then the extracted source features will be dataloaded together with existing features.
+
 
 <br/>
 
