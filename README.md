@@ -153,7 +153,7 @@ ____________________________________________________________
 **Name for Split GDB**
 > Give your new pet database a cute name!
 > 
-> The name cannot contain spaces and you don't need to add ".gdb" to the end. If you do add .gdb or have spaces in the name, the tool will automatically correct it. Feel free to try all you like, your efforts will be in vain.
+> The name cannot contain spaces and you don't need to add ".gdb" to the end. If you do add .gdb or have spaces in the name, the tool will automatically correct it. Feel free to try all you like; your efforts will be in vain.
 
 <br/>
 
