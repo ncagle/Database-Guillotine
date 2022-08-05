@@ -126,7 +126,7 @@ ____________________________________________________________
 
 - [ ] Clone source dataset schema
     - [ ] Output GDB name & destination folder
-    - [ ] Provide an existing dataset schema
+- [ ] Dataload source into existing data or blank GDB
 - [ ] Split with AOI polygon
     - [ ] Use full extent of data instead of AOI
     - [ ] Provide a merged AOI polygon
