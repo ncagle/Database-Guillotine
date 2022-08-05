@@ -126,7 +126,7 @@ ____________________________________________________________
 
 - [ ] Clone source dataset schema
     - [ ] Output GDB name & destination folder
-    - [ ] Provide an existing dataset schema
+- [ ] Dataload source into existing data or blank GDB
 - [ ] Split with AOI polygon
     - [ ] Use full extent of data instead of AOI
     - [ ] Provide a merged AOI polygon
@@ -153,7 +153,7 @@ ____________________________________________________________
 **Name for Split GDB**
 > Give your new pet database a cute name!
 > 
-> The name cannot contain spaces and you don't need to add ".gdb" to the end. If you do add .gdb or have spaces in the name, the tool will automatically correct it. Feel free to try all you like, your efforts will be in vain.
+> The name cannot contain spaces and you don't need to add ".gdb" to the end. If you do add .gdb or have spaces in the name, the tool will automatically correct it. Feel free to try all you like; your efforts will be in vain.
 
 <br/>
 
