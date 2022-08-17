@@ -27,7 +27,7 @@ comment block
 <br />
 <div align="center">
   <a href="https://github.com/ncagle/Database-Guillotine">
-    <img src="images/guillotine_small.jpg" alt="Logo" width="136" height="188">
+    <img src="images/guillotine_small.png" alt="Logo" width="150" height="176">
   </a>
 
   <h1 align="center">
