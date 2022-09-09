@@ -46,9 +46,11 @@ import uuid
   - checkbox for 50k LOC Features
 
 
-#######
-auto merge AOI into single feature so it can accept any AOI
-#######
+####
+Fixed validation bug. If the custom SQL query option was checked, the default query parameter value deleted, and the custom SQL query option then unchecked, it would lock the tool until the option was rechecked and any value assigned to the parameter. It could then be deactivated again and the tool could continue without needed a valid query.
+
+add option for final delivery that pulls everything in the GDB like tables and extra datasets
+####
 
 
 ## Recent Changes
@@ -59,6 +61,10 @@ auto merge AOI into single feature so it can accept any AOI
   - re-add if ap.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
   - Added Tool Help section for each parameter.
 
+2022-09-06
+  - Fixed lingering og_oid field for split multipart featureclasses
+  - Fixed validation bug. If the custom SQL query option was checked, the default query parameter value deleted, and the custom SQL query option then unchecked, it would lock the tool until the option was rechecked and any value assigned to the parameter. It could then be deactivated again and the tool could continue without needed a valid query.
+  - Sorted fc_list that is applied to parameter 10 "Field Name Reference"
 
 '''
 
@@ -69,6 +75,10 @@ auto merge AOI into single feature so it can accept any AOI
 ## [1] TDS - Feature Dataset
 TDS = ap.GetParameterAsText(1)
 TDS_name = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
+
+## [2] Include additional datasets and tables (TDS_CARTO, PD_Components, etc.) - Boolean
+all_files = ap.GetParameter(2) # Default: False
+
 ## [2] Create new GDB and clone source schema - Boolean
 create_GDB = ap.GetParameter(2) # Default: True
 ## [3] Name for split GDB - String
@@ -407,6 +417,100 @@ def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geome
 
 
 ''''''''' Guillotine Function '''''''''
+
+# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
+
+def pull_all_files():
+	f
+
+
+### Walk SDE and count features in feature classes
+import arcpy as ap
+import os
+
+# Set workspace
+TDS = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\H23D_Source.gdb\TDS'
+target = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\test\New File Geodatabase.gdb'
+source_path = os.path.dirname(TDS)
+print("source_path: \n{0}\n".format(source_path))
+ap.env.workspace = TDS
+
+tup = next(ap.da.Walk(source_path, topdown=True, followlinks=True, datatype='Any', type='All'))
+gdb_file_list = tup[1] + tup[2]
+if 'TDS' in gdb_file_list: gdb_file_list.remove('TDS')
+print(gdb_file_list)
+
+#print("Copying additional source GDB datasets and tables to target GDB...")
+#arcpy.Append_management(gdb_file_list, target, "NO_TEST")
+
+for misc in gdb_file_list:
+	print("Copying {0} to target GDB".format(misc))
+	#ap.Copy_management(os.path.join(source_path, misc), target)
+	ap.Copy_management(os.path.join(source_path, misc), os.path.join(target, misc))
+
+
+TDS = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\H23D_Source.gdb\TDS'
+GDB = os.path.dirname(TDS)
+ap.env.workspace = TDS
+
+gdb_walk = ap.da.Walk(GDB, topdown=True, followlinks=True, datatype='Any', type='All')
+print("Starting...")
+walk_list = [[dirpath, dirnames, filenames] for dirpath, dirnames, filenames in gdb_walk]
+print(walk_list)
+del gdb_walk
+
+try:
+	walk_list[0][1].remove(u'TDS')
+except:
+	print("Could not find TDS dataset. Please check the provided source database.")
+gdb_file_list = []
+for misc in walk_list[0][1]: gdb_file_list.append(misc)
+for misc in walk_list[0][2]: gdb_file_list.append(misc)
+print(gdb_file_list)
+[u'TDS_CARTO', u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
+
+
+
+
+
+next(ap.da.Walk(GDB, topdown=True, followlinks=True, datatype='Any', type='All'))
+(
+	u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb',
+	[u'TDS', u'TDS_CARTO'],
+	[u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
+)
+
+
+
+
+
+
+[
+	[0
+		0u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb',
+		1[u'TDS', u'TDS_CARTO'],
+		2[u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
+	],
+	[1
+		u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb\\TDS',
+		[],
+		[u'AeronauticCrv', u'AeronauticPnt', u'AeronauticSrf', u'AgriculturePnt', u'AgricultureSrf', u'BoundaryPnt', u'CultureCrv', u'CulturePnt', u'CultureSrf', u'FacilityPnt', u'FacilitySrf', u'HydroAidNavigationPnt', u'HydroAidNavigationSrf', u'HydrographyCrv', u'HydrographyPnt', u'HydrographySrf', u'IndustryCrv', u'IndustryPnt', u'IndustrySrf', u'InformationCrv', u'InformationPnt', u'InformationSrf', u'MilitaryCrv', u'MilitaryPnt', u'MilitarySrf', u'PhysiographyCrv', u'PhysiographyPnt', u'PhysiographySrf', u'PortHarbourCrv', u'PortHarbourPnt', u'PortHarbourSrf', u'RecreationCrv', u'RecreationPnt', u'RecreationSrf', u'SettlementPnt', u'SettlementSrf', u'StoragePnt', u'StorageSrf', u'StructureCrv', u'StructurePnt', u'StructureSrf', u'TransportationGroundCrv', u'TransportationGroundPnt', u'TransportationGroundSrf', u'TransportationWaterCrv', u'TransportationWaterPnt', u'TransportationWaterSrf', u'UtilityInfrastructureCrv', u'UtilityInfrastructurePnt', u'UtilityInfrastructureSrf', u'VegetationCrv', u'VegetationPnt', u'VegetationSrf', u'MetadataSrf', u'ResourceSrf']
+	],
+	[2
+		u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb\\TDS_CARTO',
+		[],
+		[u'HypsographyCrv', u'HypsographyPnt', u'AdministrativeBoundaryCrv', u'AdministrativeBoundarySrf', u'GeopoliticalEntitySrf', u'DepthCurveCrv', u'ReefCrv', u'HazardousRockPnt', u'WreckPnt', u'ReefSrf', u'ForeshoreSrf', u'WaterMovementDataLocationPnt', u'MaricultureSitePnt', u'MaricultureSiteSrf', u'ReefPnt', u'AerodromeBeaconPnt', u'AnchoragePnt', u'AnchorageSrf', u'AquaticVegetationSrf', u'DolphinPnt', u'GeophysicalDataTrackLineCrv', u'MaritimeNavigationLightPnt', u'InternationalDateLineCrv', u'AirspaceSrf', u'VhfOmniRadioBeaconPnt', u'TacticalAirNavAidBeaconPnt', u'NonDirectionalRadioBeaconPnt', u'DistanceMeasuringEquipmentPnt', u'IsogonicLineCrv', u'MaximumElevationSrf', u'PolarIceSrf', u'IceCapSrf', u'IceShelfSrf', u'PointofChangePnt', u'AeroRadioNavInstallationPnt', u'NavaidsPnt', u'FlowArrowPnt', u'RoadMarkerPnt', u'LeaderLineCrv', u'UNESCOWPnt', u'VerticalObstructionPnt', u'FerryCrossingPnt', u'FishWeirCrv', u'HydroCarbonsFieldPnt', u'RecyclingSitePnt', u'FairGroundPnt', u'GolfCoursePnt', u'InstallationPnt', u'ShantyTownPnt', u'LightVesselPnt', u'RunwayCrv', u'RunwayPnt', u'CaravanParkPnt', u'DriveInTheatrePnt', u'ManufacturedHomeParkPnt', u'MineFieldPnt', u'MoatSrf', u'ParkPnt', u'RaceTrackPnt', u'BridgeSuperStructurePnt', u'SnagPnt', u'SnagSrf', u'FishWeirPnt', u'ExcavatingMachinePnt', u'WasteHeapPnt', u'WasteHeapSrf', u'VolcanicDykeCrv', u'PublicSquarePnt', u'CampPnt', u'CampSrf', u'EngineTestCellPnt', u'FlagpolePnt', u'ManorHousePnt', u'ManorHouseSrf', u'NuclearReactorContainmentPnt', u'NuclearReactorContainmentSrf', u'EngineTestCellSrf', u'BillboardPnt', u'MineFieldSrf']
+	]
+]
+
+
+#walk = arcpy.da.Walk(workspace, datatype="FeatureClass", type="Polygon")
+#ap.da.Walk(top, topdown=True, onerror=None, followlinks=False, datatype="Any", type='All')
+
+
+
+# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
+
 def guillotine(fc_list, out_path):
 	if manual: # Allow for any field query to be made
 		# Obtained from Super Secret Parameter to get dynamic FC field names for SQL Query Builder option
@@ -597,6 +701,12 @@ def guillotine(fc_list, out_path):
 			except:
 				write("No in_class or out_class created. Or processing layers have already been cleaned up. Continuing...")
 				pass
+			try:
+				write("Deleting og_oid field from local_fc")
+				ap.DeleteField_management(local_fc, og_oid)
+			except:
+				pass
+
 			write("Finished exploding split features in {0}".format(fc_name))
 
 		finish_cursor_search = dt.now() # Stop runtime clock
