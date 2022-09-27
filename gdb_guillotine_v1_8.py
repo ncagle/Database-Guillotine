@@ -2,8 +2,8 @@
 #¸¸.·´¯`·.¸¸.·´¯`·.¸¸
 # ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀‾
 # ======================== #
-# Database Guillotine v1.7 #
-# Nat Cagle 2022-08-04     #
+# Database Guillotine v1.8 #
+# Nat Cagle 2022-09-27     #
 # ======================== #
 import arcpy as ap
 from arcpy import AddMessage as write
@@ -66,6 +66,10 @@ add option for final delivery that pulls everything in the GDB like tables and e
   - Fixed validation bug. If the custom SQL query option was checked, the default query parameter value deleted, and the custom SQL query option then unchecked, it would lock the tool until the option was rechecked and any value assigned to the parameter. It could then be deactivated again and the tool could continue without needed a valid query.
   - Sorted fc_list that is applied to parameter 10 "Field Name Reference"
 
+2022-09-20
+  - Added option to download all additional tables and files in the GDB in addition to the dataset. Used for final delivery copies.
+  - Fixed task_summary bug with formatted spacing for query line.
+
 '''
 
 
@@ -75,36 +79,34 @@ add option for final delivery that pulls everything in the GDB like tables and e
 ## [1] TDS - Feature Dataset
 TDS = ap.GetParameterAsText(1)
 TDS_name = re.findall(r"[\w']+", os.path.basename(os.path.split(TDS)[0]))[0] # Detailed breakdown in pull_local.trash.py
-
-## [2] Include additional datasets and tables (TDS_CARTO, PD_Components, etc.) - Boolean
+## [2] Include additional files (TDS_CARTO, PD_Components, etc.) - Boolean
 all_files = ap.GetParameter(2) # Default: False
-
-## [2] Create new GDB and clone source schema - Boolean
-create_GDB = ap.GetParameter(2) # Default: True
-## [3] Name for split GDB - String
-gdb_name = ap.GetParameterAsText(3) # Default: "Extracted_GDB_Name"
-## [4] Destination folder for split GDB - Folder
-out_folder = ap.GetParameterAsText(4) # Default: "C:\Users"
-## [5] Dataload into existing data or empty GDB (Schemas must match) - Workspace
-existing_GDB = ap.GetParameterAsText(5) # Default: "C:\Users"
-## [6] Use Full Extent (No AOI) - Boolean
-no_AOI = ap.GetParameter(6) # Default: False
-## [7] AOI (Must be merged into a single feature) - Feature Class
-AOI = ap.GetParameterAsText(7) # Default: "C:\Users\.."
-## [8] Extract Scale: ZI026_CTUU >= - String
-query_scale = "zi026_ctuu >= {0}".format(ap.GetParameterAsText(8)) # Scale value from list added to query - Default: "-999999"
-## [9] Extract data using custom query - Boolean
-manual = ap.GetParameter(9) # Default: False
-## [10] Field Name Reference (The Query Builder needs a feature class to load field names) - Multivalue String - {Optional}
-#field_ref = ap.GetParameter(10)
-## [11] Custom Query (Query Builder --->) - String
+## [3] Create new GDB and clone source schema - Boolean
+create_GDB = ap.GetParameter(3) # Default: True
+## [4] Name for split GDB - String
+gdb_name = ap.GetParameterAsText(4) # Default: "Extracted_GDB_Name"
+## [5] Destination folder for split GDB - Folder
+out_folder = ap.GetParameterAsText(5) # Default: "C:\Users"
+## [6] Dataload into existing data or empty GDB (Schemas must match) - Workspace
+existing_GDB = ap.GetParameterAsText(6) # Default: "C:\Users"
+## [7] Use Full Extent (No AOI) - Boolean
+no_AOI = ap.GetParameter(7) # Default: False
+## [8] AOI (Must be merged into a single feature) - Feature Class
+AOI = ap.GetParameterAsText(8) # Default: "C:\Users\.."
+## [9] Extract Scale: ZI026_CTUU >= - String
+query_scale = "zi026_ctuu >= {0}".format(ap.GetParameterAsText(9)) # Scale value from list added to query - Default: "-999999"
+## [10] Extract data using custom query - Boolean
+manual = ap.GetParameter(10) # Default: False
+## [11] Field Name Reference (The Query Builder needs a feature class to load field names) - Multivalue String - {Optional}
+#field_ref = ap.GetParameter(11)
+## [12] Custom Query (Query Builder --->) - String
 # Obtained from Super Secret Parameter to get dynamic FC field names to display in the SQL Query Builder GUI
-query_manual = ap.GetParameterAsText(11) # Default: "Ex: HGT >= 46  Applies to all feature classes"
-## [12] Extract specific feature classes - Boolean
-vogon = ap.GetParameter(12) # Default: False
-## [13] Feature Class List - String
-vogon_constructor_fleet = ap.GetParameter(13) # Said to hang in the air "the way that bricks don't" - Default: "¯\_(ツ)_/¯"
-## [14] Super Secret Parameter: What is it for? Nobody knows... - Feature Class - Default: "(ㆆ_ㆆ)"
+query_manual = ap.GetParameterAsText(12) # Default: "Ex: HGT >= 46  Applies to all feature classes"
+## [13] Extract specific feature classes - Boolean
+vogon = ap.GetParameter(13) # Default: False
+## [14] Feature Class List - String
+vogon_constructor_fleet = ap.GetParameter(14) # Said to hang in the air "the way that bricks don't" - Default: "¯\_(ツ)_/¯"
+## [15] Super Secret Parameter: What is it for? Nobody knows... - Feature Class - Default: "(ㆆ_ㆆ)"
 # It is the middle-man for after the user chooses the Field Name Reference feature class. This parameter is set to the TDS path + the FNR FC. query_manual is 'Obtained from' this parameter to fully utilize the SQL Query Builder.
 # Get current time for gdb timestamp
 #timestamp = dt.now().strftime("%Y%b%d_%H%M")
@@ -233,6 +235,9 @@ def task_summary():#TDS_name, gdb_name, existing_name, query_manual, query_scale
 	write(u"\n({2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2}`{0}.{3}{3}.{0}{1}{2})".format(u'\N{MIDDLE DOT}', u'\N{ACUTE ACCENT}', u'\N{MACRON}', u'\N{CEDILLA}'))
 	write(" )                                            ( ")
 	write("(           ~ Database  Guillotine ~           )")
+	if all_files:
+		write(" )           Copying additional files         ( ")
+		write("(       (TDS_CARTO, PD_Components, etc.)       )")
 	write(" )   Source: {0}{1}( ".format(TDS_name, format_spacing(TDS_name, 15)))
 	if create_GDB:
 		write("(    Output: {0}{1} )".format(gdb_name, format_spacing(gdb_name, 15)))
@@ -248,7 +253,7 @@ def task_summary():#TDS_name, gdb_name, existing_name, query_manual, query_scale
 	if manual:
 		write(" )   - Query: {0}{1}( ".format(query_manual, format_spacing(query_manual, 16)))
 	else:
-		write(" )   - Query: {0}              {1}( ".format(query_scale, format_spacing(query_scale, 30)))
+		write(" )   - Query: {0}{1}( ".format(query_scale, format_spacing(query_scale, 16)))
 	if vogon:
 		write("(    - Only read specified feature classes     )")
 	else:
@@ -417,99 +422,17 @@ def within_insert(aoi, icursor, row, og_oid_row): # Inserts feature if the geome
 
 
 ''''''''' Guillotine Function '''''''''
-
-# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
-
 def pull_all_files():
-	f
+	source_path = os.path.dirname(TDS)
+	tup = next(ap.da.Walk(source_path, topdown=True, followlinks=True, datatype='Any', type='All'))
+	gdb_file_list = tup[1] + tup[2]
+	if 'TDS' in gdb_file_list: gdb_file_list.remove('TDS')
+	write("Copying additional files:")
 
-
-### Walk SDE and count features in feature classes
-import arcpy as ap
-import os
-
-# Set workspace
-TDS = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\H23D_Source.gdb\TDS'
-target = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\test\New File Geodatabase.gdb'
-source_path = os.path.dirname(TDS)
-print("source_path: \n{0}\n".format(source_path))
-ap.env.workspace = TDS
-
-tup = next(ap.da.Walk(source_path, topdown=True, followlinks=True, datatype='Any', type='All'))
-gdb_file_list = tup[1] + tup[2]
-if 'TDS' in gdb_file_list: gdb_file_list.remove('TDS')
-print(gdb_file_list)
-
-#print("Copying additional source GDB datasets and tables to target GDB...")
-#arcpy.Append_management(gdb_file_list, target, "NO_TEST")
-
-for misc in gdb_file_list:
-	print("Copying {0} to target GDB".format(misc))
-	#ap.Copy_management(os.path.join(source_path, misc), target)
-	ap.Copy_management(os.path.join(source_path, misc), os.path.join(target, misc))
-
-
-TDS = r'C:\Projects\njcagle\R&D\2_Uncle Nats Database Sampler Platter with Gravy\H23D_Source.gdb\TDS'
-GDB = os.path.dirname(TDS)
-ap.env.workspace = TDS
-
-gdb_walk = ap.da.Walk(GDB, topdown=True, followlinks=True, datatype='Any', type='All')
-print("Starting...")
-walk_list = [[dirpath, dirnames, filenames] for dirpath, dirnames, filenames in gdb_walk]
-print(walk_list)
-del gdb_walk
-
-try:
-	walk_list[0][1].remove(u'TDS')
-except:
-	print("Could not find TDS dataset. Please check the provided source database.")
-gdb_file_list = []
-for misc in walk_list[0][1]: gdb_file_list.append(misc)
-for misc in walk_list[0][2]: gdb_file_list.append(misc)
-print(gdb_file_list)
-[u'TDS_CARTO', u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
-
-
-
-
-
-next(ap.da.Walk(GDB, topdown=True, followlinks=True, datatype='Any', type='All'))
-(
-	u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb',
-	[u'TDS', u'TDS_CARTO'],
-	[u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
-)
-
-
-
-
-
-
-[
-	[0
-		0u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb',
-		1[u'TDS', u'TDS_CARTO'],
-		2[u'PD_Components', u'PD_DataModelVersion', u'PD_MaintainedInstance', u'PD_Properties', u'PD_PropertyFolders', u'PD_FeatureMetadata']
-	],
-	[1
-		u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb\\TDS',
-		[],
-		[u'AeronauticCrv', u'AeronauticPnt', u'AeronauticSrf', u'AgriculturePnt', u'AgricultureSrf', u'BoundaryPnt', u'CultureCrv', u'CulturePnt', u'CultureSrf', u'FacilityPnt', u'FacilitySrf', u'HydroAidNavigationPnt', u'HydroAidNavigationSrf', u'HydrographyCrv', u'HydrographyPnt', u'HydrographySrf', u'IndustryCrv', u'IndustryPnt', u'IndustrySrf', u'InformationCrv', u'InformationPnt', u'InformationSrf', u'MilitaryCrv', u'MilitaryPnt', u'MilitarySrf', u'PhysiographyCrv', u'PhysiographyPnt', u'PhysiographySrf', u'PortHarbourCrv', u'PortHarbourPnt', u'PortHarbourSrf', u'RecreationCrv', u'RecreationPnt', u'RecreationSrf', u'SettlementPnt', u'SettlementSrf', u'StoragePnt', u'StorageSrf', u'StructureCrv', u'StructurePnt', u'StructureSrf', u'TransportationGroundCrv', u'TransportationGroundPnt', u'TransportationGroundSrf', u'TransportationWaterCrv', u'TransportationWaterPnt', u'TransportationWaterSrf', u'UtilityInfrastructureCrv', u'UtilityInfrastructurePnt', u'UtilityInfrastructureSrf', u'VegetationCrv', u'VegetationPnt', u'VegetationSrf', u'MetadataSrf', u'ResourceSrf']
-	],
-	[2
-		u'C:\\Projects\\njcagle\\R&D\\2_Uncle Nats Database Sampler Platter with Gravy\\H23D_Source.gdb\\TDS_CARTO',
-		[],
-		[u'HypsographyCrv', u'HypsographyPnt', u'AdministrativeBoundaryCrv', u'AdministrativeBoundarySrf', u'GeopoliticalEntitySrf', u'DepthCurveCrv', u'ReefCrv', u'HazardousRockPnt', u'WreckPnt', u'ReefSrf', u'ForeshoreSrf', u'WaterMovementDataLocationPnt', u'MaricultureSitePnt', u'MaricultureSiteSrf', u'ReefPnt', u'AerodromeBeaconPnt', u'AnchoragePnt', u'AnchorageSrf', u'AquaticVegetationSrf', u'DolphinPnt', u'GeophysicalDataTrackLineCrv', u'MaritimeNavigationLightPnt', u'InternationalDateLineCrv', u'AirspaceSrf', u'VhfOmniRadioBeaconPnt', u'TacticalAirNavAidBeaconPnt', u'NonDirectionalRadioBeaconPnt', u'DistanceMeasuringEquipmentPnt', u'IsogonicLineCrv', u'MaximumElevationSrf', u'PolarIceSrf', u'IceCapSrf', u'IceShelfSrf', u'PointofChangePnt', u'AeroRadioNavInstallationPnt', u'NavaidsPnt', u'FlowArrowPnt', u'RoadMarkerPnt', u'LeaderLineCrv', u'UNESCOWPnt', u'VerticalObstructionPnt', u'FerryCrossingPnt', u'FishWeirCrv', u'HydroCarbonsFieldPnt', u'RecyclingSitePnt', u'FairGroundPnt', u'GolfCoursePnt', u'InstallationPnt', u'ShantyTownPnt', u'LightVesselPnt', u'RunwayCrv', u'RunwayPnt', u'CaravanParkPnt', u'DriveInTheatrePnt', u'ManufacturedHomeParkPnt', u'MineFieldPnt', u'MoatSrf', u'ParkPnt', u'RaceTrackPnt', u'BridgeSuperStructurePnt', u'SnagPnt', u'SnagSrf', u'FishWeirPnt', u'ExcavatingMachinePnt', u'WasteHeapPnt', u'WasteHeapSrf', u'VolcanicDykeCrv', u'PublicSquarePnt', u'CampPnt', u'CampSrf', u'EngineTestCellPnt', u'FlagpolePnt', u'ManorHousePnt', u'ManorHouseSrf', u'NuclearReactorContainmentPnt', u'NuclearReactorContainmentSrf', u'EngineTestCellSrf', u'BillboardPnt', u'MineFieldSrf']
-	]
-]
-
-
-#walk = arcpy.da.Walk(workspace, datatype="FeatureClass", type="Polygon")
-#ap.da.Walk(top, topdown=True, onerror=None, followlinks=False, datatype="Any", type='All')
-
-
-
-# !_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!_!‾!
+	for misc in gdb_file_list:
+		write("Copying {0} to target GDB".format(misc))
+		if not ap.Exists(os.path.join(out_path, misc)):
+			ap.Copy_management(os.path.join(source_path, misc), os.path.join(out_path, misc))
 
 def guillotine(fc_list, out_path):
 	if manual: # Allow for any field query to be made
@@ -741,15 +664,14 @@ else:
 	out_path = existing_GDB
 	out_tds = os.path.join(out_path, "TDS")
 
-
 task_summary()
 
+if all_files: pull_all_files()
 
 if no_AOI:
 	ap.env.extent = TDS
 	AOI = "in_memory\\the_grid" # A digital frontier.
 	ap.CopyFeatures_management(ap.env.extent.polygon, AOI)
-
 
 if not vogon:
 	fc_walk = ap.da.Walk(TDS, "FeatureClass")
