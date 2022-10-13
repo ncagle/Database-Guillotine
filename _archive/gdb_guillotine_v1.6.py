@@ -2,8 +2,8 @@
 #¸¸.·´¯`·.¸¸.·´¯`·.¸¸
 # ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀‾
 # ======================== #
-# Database Guillotine v1.5 #
-# Nat Cagle 2022-07-21     #
+# Database Guillotine v1.6 #
+# Nat Cagle 2022-07-27     #
 # ======================== #
 import arcpy as ap
 from arcpy import AddMessage as write
@@ -841,4 +841,3 @@ write("\nSplit GDB output location: {0}\n".format(out_path))
 		# for fc in split_list:
 		# 	write("{0}:\n{1}\n".format(fc, split_dict[fc]))
 		# write("\n")
-

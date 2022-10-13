@@ -1,7 +1,7 @@
-# =================================== #
-# Database Guillotine - Scale and AOI #
-# Nat Cagle 2022-03-31                #
-# =================================== #
+# ======================================== #
+# Database Guillotine - Scale and AOI v1.2 #
+# Nat Cagle 2022-03-31                     #
+# ======================================== #
 import arcpy
 from arcpy import AddMessage as write
 from datetime import datetime as dt

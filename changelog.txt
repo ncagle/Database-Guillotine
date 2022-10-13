@@ -1,0 +1,59 @@
+Database Guillotine Changelog
+For version 1.3+
+
+v1.3
+  - Added tool parameter validation script.
+  - Added option to use existing blank GDB.
+  - Added option to use full extent of data instead of AOI.
+  - Attempted to implement option to use custom query to extract data.
+  - Attempted to implement checkbox list to choose specific feature classes to include or 
+    exclude in extraction.
+  - Added explosion of multipart features after splitting along AOI/extent boundaries. Features 
+    maintain original attribution and NULL attributes are populated with default values.
+
+v1.4
+  - Updated formatting of task summary.
+  - Improvements to option to use custom query to extract data.
+  - Improvements to checkbox list to choose specific feature classes to include or exclude in 
+    extraction.
+
+v1.5
+  - Sanitize feature class names when connected to SDE. Removes "sde_name.sde." prefix.
+  - Added parameter for custom name of new output GDB.
+  - Added parameter for folder location of new output GDB rather than creating it in the same 
+    parent folder as the source.
+  - Reintroduced feature to check for a matching schema between source and existing blank target 
+    GDB. Warns user that the output GDB provided doesn't match the schema of the source GDB. 
+    Progress will continue with feature classes that match the schema. A list of feature classes 
+    that were not copied due to schema mismatch will be printed at end of processing.
+  - Updated logic for checking crossing and within spatial relations of features and AOI/extent.
+  - Refactored main Guillotine logic into function and externalized the source Walk.
+  - Reworked logic to create extent polygon for Full Extent option using in_memory space and 
+    the dataset environment properties.
+
+v1.6
+  - Improvements to custom SQL query option.
+  - Added Field Name Reference field to populate Field Names in SQL query dialogue box.
+  - Added hidden middleman query to correctly link the source dataset to the Field Name 
+    Reference and custom SQL query parameters for proper validation.
+  - Improvements to checkbox list to choose specific feature classes to include or exclude in 
+    extraction.
+  - Updated path mapping to feature classes when connected to SDE.
+  - Updated formatting of task summary.
+
+v1.7
+  - Updated and improved tool validation script to sanitize inputs and provide error and warning 
+    messages within the tool dialogue window.
+  - Added Tool Help section for each parameter.
+  - Created full tool documentation.
+
+v1.8
+  - Fixed lingering og_oid field for split multipart feature classes.
+  - Fixed validation bug. If the custom SQL query option was checked, the default query 
+    parameter value deleted, and the custom SQL query option then unchecked, it would lock the 
+    tool until the option was rechecked and any value assigned to the parameter. It could then 
+    be deactivated again and the tool could continue without needed a valid query.
+  - Sorted fc_list that is applied to parameter 10 "Field Name Reference".
+  - Added option to download all additional tables and files in the GDB in addition to the 
+    dataset. Used for final delivery copies.
+  - Fixed task_summary bug with formatted spacing for query line.

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#¸¸.·´¯`·.¸¸.·´¯`·.¸¸
+# ¸¸.·´¯`·.¸¸.·´¯`·.¸¸
 # ║╚╔═╗╝║  │┌┘─└┐│  ▄█▀‾
 # ======================== #
 # Database Guillotine v1.8 #
@@ -37,38 +37,21 @@ import uuid
 ## 2 hashtags in the code means recent changes/updates
 
 #### Update Plans
-  - Add note to user that this only works on databases using the CTUU format. Does not work on CACI GDBs in the Scale format
-    if self.params[5].value is not None:
-        if self.params[5].value.endswith(".gdb") == False and self.params[5].value != "":
-            self.params[5].value = self.params[5].value + ".gdb"
-  - option to use custom query to extract data
-  - checkbox list to choose specific feature classes to extract or not
-  - checkbox for 50k LOC Features
-
-
-####
-Fixed validation bug. If the custom SQL query option was checked, the default query parameter value deleted, and the custom SQL query option then unchecked, it would lock the tool until the option was rechecked and any value assigned to the parameter. It could then be deactivated again and the tool could continue without needed a valid query.
-
-add option for final delivery that pulls everything in the GDB like tables and extra datasets
-####
+  -
 
 
 ## Recent Changes
-  - option to use existing blank GDB
-  - input name of GDB output
-  - new param for folder location
-  - option to use full extent of data instead of AOI
-  - re-add if ap.exists    if doesn't exist throw warning to user that the output gdb provided doesn't match the schema of the data being copied. progress will continue with feature classes that match the schema. output which feature classes don't match at end of run.
   - Added Tool Help section for each parameter.
 
 2022-09-06
-  - Fixed lingering og_oid field for split multipart featureclasses
+  - Fixed lingering og_oid field for split multipart feature classes
   - Fixed validation bug. If the custom SQL query option was checked, the default query parameter value deleted, and the custom SQL query option then unchecked, it would lock the tool until the option was rechecked and any value assigned to the parameter. It could then be deactivated again and the tool could continue without needed a valid query.
   - Sorted fc_list that is applied to parameter 10 "Field Name Reference"
 
 2022-09-20
   - Added option to download all additional tables and files in the GDB in addition to the dataset. Used for final delivery copies.
   - Fixed task_summary bug with formatted spacing for query line.
+
 
 '''
 

@@ -1,7 +1,7 @@
-# =================================== #
-# Database Guillotine - Scale and AOI #
-# Nat Cagle 2022-03-31                #
-# =================================== #
+# ======================================== #
+# Database Guillotine - Scale and AOI v1.0 #
+# Nat Cagle 2022-03-31                     #
+# ======================================== #
 import arcpy
 from arcpy import AddMessage as write
 from datetime import datetime as dt
@@ -324,4 +324,3 @@ for dirpath, dirnames, filenames in fc_walk: # No dirnames present. Use Walk to 
 				split_ends(local_icursor, fc_name, start_cursor_search, f_count, total_feats) # Close insert cursor, output runtime, output total features copied, and continue to next feature class
 
 write("\n*** Please be sure to run the Hypernova Burst Multipart tool in the Finishing tool on this split copy. ***\n")
-
