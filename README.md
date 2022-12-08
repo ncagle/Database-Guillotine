@@ -286,10 +286,10 @@ Nat Cagle - <a href="https://github.com/ncagle">github.com/ncagle</a>
 [issues-shield]: https://img.shields.io/github/issues/ncagle/Database-Guillotine.svg?style=for-the-badge
 [issues-url]: https://github.com/ncagle/Database-Guillotine/issues
 [license-shield]: https://img.shields.io/github/license/ncagle/Database-Guillotine.svg?style=for-the-badge
-[license-url]: https://github.com/ncagle/Database-Guillotine/blob/main/LICENSE.txt
+[license-url]: https://github.com/ncagle/Database-Guillotine/blob/main/LICENSE
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://www.linkedin.com/in/ncagle/
-[tool-screenshot]: images/toolbox_v1_6.png
+[tool-screenshot]: images/toolbox_v1_7.png
 [tool-logo]: images/guillotine_small.jpg
 [Python]: https://img.shields.io/badge/python-2.7-blue?style=for-the-badge&logo=python&logoColor=white
 [Python-url]: https://www.python.org/ 
